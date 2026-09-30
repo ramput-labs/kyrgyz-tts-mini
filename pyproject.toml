@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kyrgyz-tts"
+dynamic = ["version"]
+description = "Kyrgyz text-to-speech (Matcha-TTS + HiFi-GAN)"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE", "THIRD_PARTY_LICENSE-Matcha-TTS"]
+requires-python = ">=3.11"
+keywords = ["kyrgyz", "tts", "text-to-speech", "matcha-tts"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Natural Language :: Kyrgyz",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+]
+dependencies = [
+    "torch>=2.6",
+    "numpy",
+    "einops",
+    "omegaconf",               # unpickling checkpoint hyperparameters
+    "soundfile",
+    "sounddevice",
+    "gdown",
+]
+
+[project.optional-dependencies]
+demo = ["gradio>=4"]
+dev = ["pytest", "ruff", "build"]
+
+[project.scripts]
+kyrgyz-tts = "kyrgyz_tts.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "kyrgyz_tts.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["models: needs the downloaded models (deselect with -m 'not models')"]
+
+[tool.ruff]
+line-length = 120
+src = ["src"]
+extend-exclude = ["src/kyrgyz_tts/matcha", "src/kyrgyz_tts/hifigan"]  # vendored
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["E501"]

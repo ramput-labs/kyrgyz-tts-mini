@@ -1,0 +1,29 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+
+# Models and generated audio: download with `make setup`, never commit weights
+models/
+outputs/
+*.ckpt
+*.safetensors
+*.pt
+*.pth
+*.bin
+*.onnx
+*.zip
+*.part
+*.wav
+!samples/*.wav
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+.env
