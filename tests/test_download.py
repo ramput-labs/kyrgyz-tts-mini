@@ -1,11 +1,11 @@
-"""Model download tests with a fake Hugging Face repo: no network, no real weights."""
+"""Download tests against a fake remote: no network, no real weights."""
 
 import hashlib
 import shutil
 
 import pytest
 
-import kyrgyz_tts_mini.models as m
+import kyrgyz_tts_mini.download as m
 
 
 def digest(data: bytes) -> str:
@@ -28,13 +28,13 @@ def hub(monkeypatch, tmp_path):
     folder = FakeHub(tmp_path / "hub")
     folder.folder.mkdir()
 
-    def fake(model, force=False):
+    def fake(model):
         folder.calls.append(model.filename)
         if not (folder / model.filename).exists():
             raise ConnectionError(f"404 {model.filename}")
         shutil.copyfile(folder / model.filename, model.path)
 
-    monkeypatch.setattr(m, "hub_download", fake)
+    monkeypatch.setattr(m, "transfer", fake)
     monkeypatch.setattr(m, "RETRY_DELAY", 0)
     monkeypatch.setattr(m.config, "MODELS_DIR", tmp_path / "models")
     return folder
@@ -73,15 +73,15 @@ def test_network_errors_are_retried_then_reported(tmp_path, hub):
 
 def test_transient_error_is_retried(tmp_path, hub, monkeypatch):
     (hub / "voice.ckpt").write_bytes(b"weights")
-    real = m.hub_download
+    real = m.transfer
     failures = iter([ConnectionError("reset")])
 
-    def flaky(model, force=False):
+    def flaky(model):
         if (error := next(failures, None)) is not None:
             raise error
-        real(model, force)
+        real(model)
 
-    monkeypatch.setattr(m, "hub_download", flaky)
+    monkeypatch.setattr(m, "transfer", flaky)
     m.fetch(model(tmp_path))
     assert hub.calls == ["voice.ckpt"]
 
@@ -121,15 +121,10 @@ def test_check_reports_each_model(tmp_path, monkeypatch, capsys):
     assert "good" in out and "CHECKSUM MISMATCH" in out and "MISSING" in out
 
 
-def test_upload_refuses_missing_or_corrupt_models(tmp_path, monkeypatch):
-    monkeypatch.setattr(m, "MODELS", [model(tmp_path)])
-    with pytest.raises(m.DownloadError, match="missing"):
-        m.upload()
-
-
 def test_manifest_is_consistent():
     names = [x.name for x in m.MODELS]
     files = [x.filename for x in m.MODELS]
     assert len(set(names)) == len(names) and len(set(files)) == len(files)
     for x in m.MODELS:
         assert len(x.sha256) == 64 and x.size > 0
+        assert x.url == f"https://huggingface.co/{m.config.HF_REPO}/resolve/main/{x.filename}"

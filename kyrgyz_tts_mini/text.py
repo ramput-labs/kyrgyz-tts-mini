@@ -1,36 +1,34 @@
-"""Kyrgyz text → token ids. Voices use raw lowercase Cyrillic (no phonemizer); other characters are dropped."""
+"""Kyrgyz text → token ids. The voices read raw lowercase Cyrillic (no phonemizer); other characters are dropped."""
 
 import re
 
-_pad = "_"
-_punctuation = "!'(),.:;?!¡¿—…\"«»“” "
-_special = "-"
-_letters = "абвгдеёжзийклмнңоөпрстуүфхцчшщьыъэюя"
+PAD = "_"
+PUNCTUATION = "!'(),.:;?!¡¿—…\"«»“” "
+LETTERS = "абвгдеёжзийклмнңоөпрстуүфхцчшщьыъэюя"
 
-# Order matters: the ids are baked into the checkpoints.
-SYMBOLS = [_pad] + list(_punctuation) + list(_letters) + list(_special)
+# The ids are baked into the checkpoints: never reorder or dedupe (the second "!" is intentional).
+SYMBOLS = [PAD, *PUNCTUATION, *LETTERS, "-"]
 
-_symbol_to_id = {s: i for i, s in enumerate(SYMBOLS)}
-_whitespace_re = re.compile(r"\s+")
+_ids = {s: i for i, s in enumerate(SYMBOLS)}
+_whitespace = re.compile(r"\s+")
 
 
 def clean(text: str) -> str:
-    return _whitespace_re.sub(" ", text.lower())
+    return _whitespace.sub(" ", text.lower())
 
 
-def text_to_sequence(text: str) -> list[int]:
-    return [_symbol_to_id[s] for s in clean(text) if s in _symbol_to_id and s != _pad]
-
-
-def intersperse(lst: list, item) -> list:
-    result = [item] * (len(lst) * 2 + 1)
-    result[1::2] = lst
+def to_ids(text: str) -> list[int]:
+    """Token ids with the pad id between every symbol and at both ends, as the voices were trained."""
+    ids = [_ids[s] for s in clean(text) if s in _ids and s != PAD]
+    result = [_ids[PAD]] * (2 * len(ids) + 1)
+    result[1::2] = ids
     return result
 
 
 def has_letters(text: str) -> bool:
-    return any(c in _letters for c in clean(text))
+    return any(c in LETTERS for c in clean(text))
 
 
 def dropped_characters(text: str) -> str:
-    return "".join(dict.fromkeys(c for c in clean(text) if c not in _symbol_to_id))
+    """The distinct characters of `text` that the voices cannot pronounce, in order of appearance."""
+    return "".join(dict.fromkeys(c for c in clean(text) if c not in _ids))

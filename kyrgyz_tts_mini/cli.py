@@ -5,19 +5,19 @@ python -m kyrgyz_tts_mini speak -f samples/texts.txt                   every lin
 python -m kyrgyz_tts_mini speak                                        interactive: type a line, hear it
 python -m kyrgyz_tts_mini web                                          web UI at http://127.0.0.1:7860
 python -m kyrgyz_tts_mini doctor                                       environment, models and a test synthesis
-python -m kyrgyz_tts_mini download                                     fetch missing models from Hugging Face
-python -m kyrgyz_tts_mini upload                                       push local models to Hugging Face
+python -m kyrgyz_tts_mini download [--check]                           fetch (or verify) the models from Hugging Face
 """
 
 import argparse
 import platform
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 
-import numpy as np
-
-from kyrgyz_tts_mini import audio, config
+from kyrgyz_tts_mini import config, download
+from kyrgyz_tts_mini.config import Settings
+from kyrgyz_tts_mini.text import dropped_characters
 
 DIM, CYAN, GREEN, RED, RESET = "\033[2m", "\033[36m", "\033[32m", "\033[31m", "\033[0m"
 
@@ -26,75 +26,61 @@ def status(message: str) -> None:
     print(message, file=sys.stderr)
 
 
-def synthesize(args, text: str):
-    from kyrgyz_tts_mini.engine import get_tts
-    from kyrgyz_tts_mini.text import dropped_characters
-
-    speech = get_tts(args.device).synthesize(
-        text,
-        args.voice,
-        temperature=args.temperature,
-        speaking_rate=args.rate,
-        steps=args.steps,
-        denoiser_strength=args.denoise,
+def output_path(args) -> Path:
+    return (
+        Path(args.output) if args.output else config.OUTPUTS_DIR / f"{datetime.now():%Y%m%d-%H%M%S-%f}-{args.voice}.wav"
     )
-    if skipped := dropped_characters(text).strip():
-        status(f"{DIM}skipped (no pronunciation): {skipped}{RESET}")
-    return speech
 
 
-def report(speech, path: Path) -> None:
-    rtf = speech.seconds / speech.audio_seconds if speech.audio_seconds else 0
-    print(path)
-    status(f"{DIM}{speech.audio_seconds:.1f}s of speech in {speech.seconds:.2f}s (RTF {rtf:.2f}){RESET}")
+def settings(args) -> Settings:
+    return Settings(temperature=args.temperature, rate=args.rate, steps=args.steps, denoise=args.denoise)
 
 
-def warm_up(args) -> None:
+def load(args):
     from kyrgyz_tts_mini.engine import get_tts
 
     tts = get_tts(args.device)
     status(f"Loading the {args.voice} voice on {tts.device}…")
     tts.warm_up(args.voice)
+    return tts
+
+
+def report(speech, path: Path, text: str) -> None:
+    print(path)
+    if skipped := dropped_characters(text).strip():
+        status(f"{DIM}skipped (no pronunciation): {skipped}{RESET}")
+    rtf = speech.elapsed / speech.duration if speech.duration else 0
+    status(f"{DIM}{speech.duration:.1f}s of speech in {speech.elapsed:.2f}s (RTF {rtf:.2f}){RESET}")
 
 
 def cmd_speak(args) -> None:
-    from kyrgyz_tts_mini.engine import Speech
-
     if args.file:
-        lines = Path(args.file).read_text(encoding="utf-8").splitlines()
-        texts = [line.strip() for line in lines if line.strip()]
+        text = Path(args.file).read_text(encoding="utf-8")
     elif args.text:
-        texts = [" ".join(args.text)]
+        text = " ".join(args.text)
     else:
         return interactive(args)
 
-    warm_up(args)
-    speeches = [synthesize(args, text) for text in texts]
-    sr = speeches[0].sample_rate
-    pause = np.zeros(int(0.3 * sr), dtype=np.float32)
-    joined = np.concatenate([part for s in speeches for part in (s.audio, pause)][:-1])
-    speech = Speech(joined, sr, sum(s.seconds for s in speeches))
-    path = audio.save(speech.audio, sr, args.output or audio.timestamped(config.OUTPUTS_DIR, f"-{args.voice}"))
-    report(speech, path)
+    speech = load(args).synthesize_lines(text.splitlines(), args.voice, settings(args))
+    report(speech, speech.save(output_path(args)), text)
     if args.play:
-        audio.play(speech.audio, sr)
+        speech.play()
 
 
 def interactive(args) -> None:
-    warm_up(args)
+    tts = load(args)
     status(f"Type Kyrgyz text and press Enter to hear it ({args.voice} voice). Ctrl-D quits.")
     try:
         while True:
-            text = input(f"\n{CYAN}{args.voice}›{RESET} ").strip()
-            if not text:
+            if not (text := input(f"\n{CYAN}{args.voice}›{RESET} ").strip()):
                 continue
             try:
-                speech = synthesize(args, text)
+                speech = tts.synthesize(text, args.voice, settings(args))
             except ValueError as e:
                 status(str(e))
                 continue
-            report(speech, audio.save(speech.audio, speech.sample_rate, audio.timestamped(config.OUTPUTS_DIR)))
-            audio.play(speech.audio, speech.sample_rate)
+            report(speech, speech.save(output_path(args)), text)
+            speech.play()
     except (KeyboardInterrupt, EOFError):
         status("")
 
@@ -116,45 +102,42 @@ def venv_status() -> tuple[bool, str]:
 def cmd_doctor(args) -> None:
     import torch
 
-    from kyrgyz_tts_mini.models import MODELS, problem
+    from kyrgyz_tts_mini.engine import get_tts, pick_device
 
     ok = True
 
     def row(label: str, value: str, good: bool = True) -> None:
         nonlocal ok
         ok &= good
-        mark = f"{GREEN}✓{RESET}" if good else f"{RED}✗{RESET}"
-        print(f"{mark} {label:<14} {value}")
+        print(f"{f'{GREEN}✓' if good else f'{RED}✗'}{RESET} {label:<14} {value}")
 
     row("python", f"{platform.python_version()} ({sys.executable})", sys.version_info >= (3, 11))
     venv_ok, venv_note = venv_status()
     row("venv", venv_note, venv_ok)
     row("platform", f"{platform.system()} {platform.machine()}")
     row("torch", torch.__version__)
-    row("device", args.device or audio.pick_device())
-    for model in MODELS:
-        issue = problem(model)
+    row("device", args.device or pick_device())
+    for model in download.MODELS:
+        issue = download.problem(model)
         row(f"model {model.name}", "ok" if issue is None else f"{issue} → run `make download`", issue is None)
     try:
         import sounddevice as sd
 
         row("audio output", sd.query_devices(kind="output")["name"])
-    except Exception as e:  # no sound device (CI, SSH): only playback is affected
+    except Exception as e:  # no sound device (CI, SSH): only --play is affected
         print(f"{DIM}- audio output   unavailable ({e}); --play will not work{RESET}")
 
     if ok:
-        from kyrgyz_tts_mini.engine import get_tts
-
         start = time.perf_counter()
         try:
-            speech = get_tts(args.device).synthesize("Саламатсызбы!", next(iter(config.VOICES)))
-            row("test synthesis", f"{speech.audio_seconds:.1f}s of speech in {time.perf_counter() - start:.1f}s")
+            speech = get_tts(args.device).synthesize("Саламатсызбы!")
+            row("test synthesis", f"{speech.duration:.1f}s of speech in {time.perf_counter() - start:.1f}s")
         except Exception as e:
             row("test synthesis", f"failed: {e}", False)
 
-    print(f"\n{GREEN}Ready.{RESET} Try: make run" if ok else f"\n{RED}Not ready{RESET}: fix the ✗ items above.")
     if not ok:
-        sys.exit(1)
+        sys.exit(f"\n{RED}Not ready{RESET}: fix the ✗ items above.")
+    print(f"\n{GREEN}Ready.{RESET} Try: make run")
 
 
 def cmd_web(args) -> None:
@@ -165,13 +148,20 @@ def cmd_web(args) -> None:
     web.launch(args)
 
 
-def cmd_upload(args) -> None:
-    from kyrgyz_tts_mini.models import DownloadError, upload
-
+def cmd_download(args) -> None:
+    if args.check:
+        sys.exit(0 if download.check() else 1)
     try:
-        upload(public=args.public)
-    except DownloadError as e:
-        sys.exit(f"error: {e}")
+        download.download(args.models, args.force)
+    except KeyboardInterrupt:
+        sys.exit("\ninterrupted: run the same command again to resume")
+
+
+def model_name(name: str) -> str:
+    names = [m.name for m in download.MODELS]
+    if name not in names:
+        raise argparse.ArgumentTypeError(f"unknown model {name!r}; choose from {', '.join(names)}")
+    return name
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -179,52 +169,49 @@ def build_parser() -> argparse.ArgumentParser:
         prog="python -m kyrgyz_tts_mini", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     sub = parser.add_subparsers(dest="command", required=True, metavar="command")
+    device = argparse.ArgumentParser(add_help=False)
+    device.add_argument("--device", help="cuda, mps or cpu (default: best available)")
+    d = Settings()
 
-    p = sub.add_parser("speak", help="text → speech (no text: interactive)")
+    p = sub.add_parser("speak", parents=[device], help="text → speech (no text: interactive)")
     p.add_argument("text", nargs="*", help="text to speak")
     p.add_argument("-f", "--file", help="speak every non-empty line of a UTF-8 text file")
-    p.add_argument("-v", "--voice", choices=list(config.VOICES), default="woman", help="voice (default: woman)")
+    p.add_argument(
+        "-v", "--voice", choices=list(config.VOICES), default=config.DEFAULT_VOICE, help="(default: %(default)s)"
+    )
     p.add_argument("-o", "--output", help=f"WAV path (default: {config.OUTPUTS_DIR.name}/<time>-<voice>.wav)")
     p.add_argument("-p", "--play", action="store_true", help="play the result")
-    p.add_argument("--rate", type=float, default=1.0, help="length scale, higher is slower (default: 1.0)")
-    p.add_argument("--temperature", type=float, default=0.667, help="variation; 0 = deterministic (default: 0.667)")
-    p.add_argument("--steps", type=int, default=10, help="ODE solver steps (default: 10)")
-    p.add_argument("--denoise", type=float, default=0.00025, help="vocoder denoiser strength, 0 = off")
-    p.add_argument("--device", help="cuda, mps or cpu (default: best available)")
+    p.add_argument("--rate", type=float, default=d.rate, help="length scale, higher is slower (default: %(default)s)")
+    p.add_argument(
+        "--temperature", type=float, default=d.temperature, help="variation; 0 = same every time (default: %(default)s)"
+    )
+    p.add_argument("--steps", type=int, default=d.steps, help="ODE solver steps (default: %(default)s)")
+    p.add_argument(
+        "--denoise", type=float, default=d.denoise, help="vocoder denoiser strength; 0 = off (default: %(default)s)"
+    )
     p.set_defaults(func=cmd_speak)
 
-    p = sub.add_parser("doctor", help="check the environment and models, run a test synthesis")
-    p.add_argument("--device", help="cuda, mps or cpu (default: best available)")
+    p = sub.add_parser("doctor", parents=[device], help="check the environment and models, run a test synthesis")
     p.set_defaults(func=cmd_doctor)
 
-    p = sub.add_parser("web", help="web UI in the browser")
-    p.add_argument("--device", help="cuda, mps or cpu (default: best available)")
+    p = sub.add_parser("web", parents=[device], help="web UI in the browser")
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--port", type=int, default=7860)
     p.add_argument("--share", action="store_true", help="create a public gradio.live link")
     p.add_argument("--open", action="store_true", help="open the UI in the default browser")
     p.set_defaults(func=cmd_web)
 
-    sub.add_parser("download", help="download / verify the models (see: download --help)", add_help=False)
-
-    p = sub.add_parser("upload", help=f"push local models to huggingface.co/{config.HF_REPO}")
-    p.add_argument("--public", action="store_true", help="create the repo as public (default: private)")
-    p.set_defaults(func=cmd_upload)
+    p = sub.add_parser("download", help="download or verify the models")
+    p.add_argument("models", nargs="*", type=model_name, metavar="MODEL", help="woman, man, vocoder (default: all)")
+    p.add_argument("--force", action="store_true", help="download again even if installed")
+    p.add_argument("--check", action="store_true", help="verify the installed models against their SHA-256 and exit")
+    p.set_defaults(func=cmd_download)
     return parser
 
 
 def main(argv: list[str] | None = None) -> None:
-    argv = sys.argv[1:] if argv is None else argv
-    if argv[:1] == ["download"]:
-        from kyrgyz_tts_mini import models
-
-        return models.main(argv[1:])
     args = build_parser().parse_args(argv)
     try:
         args.func(args)
-    except (FileNotFoundError, ValueError) as e:
+    except (OSError, ValueError, download.DownloadError) as e:
         sys.exit(f"error: {e}")
-
-
-if __name__ == "__main__":
-    main()

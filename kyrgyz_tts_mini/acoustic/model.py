@@ -1,15 +1,19 @@
+"""Matcha-TTS acoustic model: Kyrgyz token ids → mel-spectrogram."""
+
 import collections
 import functools
-import time
 import typing
 from pathlib import Path
 
 import omegaconf
 import torch
+from torch import nn
 
 from kyrgyz_tts_mini.acoustic.flow_matching import CFM
 from kyrgyz_tts_mini.acoustic.text_encoder import TextEncoder
-from kyrgyz_tts_mini.acoustic.utils import denormalize, fix_len_compatibility, generate_path, sequence_mask
+from kyrgyz_tts_mini.acoustic.utils import fix_len_compatibility, generate_path, sequence_mask
+
+SAMPLE_RATE = 22050
 
 # torch>=2.6 loads with weights_only=True; allowlist the objects pickled in the checkpoints.
 CHECKPOINT_SAFE_GLOBALS = [
@@ -27,37 +31,13 @@ CHECKPOINT_SAFE_GLOBALS = [
     int,
 ]
 
-SAMPLE_RATE = 22050
-HOP_LENGTH = 256
 
-
-class AcousticModel(torch.nn.Module):
-    def __init__(self, n_vocab, n_spks, spk_emb_dim, n_feats, encoder, decoder, cfm, data_statistics, **_training_only):
+class AcousticModel(nn.Module):
+    def __init__(self, n_vocab, encoder, decoder, data_statistics, **_unused_hparams):
         super().__init__()
-        self.n_vocab = n_vocab
-        self.n_spks = n_spks
-        self.spk_emb_dim = spk_emb_dim
-        self.n_feats = n_feats
-
-        if n_spks > 1:
-            self.spk_emb = torch.nn.Embedding(n_spks, spk_emb_dim)
-
-        self.encoder = TextEncoder(
-            encoder.encoder_type,
-            encoder.encoder_params,
-            encoder.duration_predictor_params,
-            n_vocab,
-            n_spks,
-            spk_emb_dim,
-        )
-        self.decoder = CFM(
-            in_channels=2 * encoder.encoder_params.n_feats,
-            out_channel=encoder.encoder_params.n_feats,
-            cfm_params=cfm,
-            decoder_params=decoder,
-            n_spks=n_spks,
-            spk_emb_dim=spk_emb_dim,
-        )
+        n_feats = encoder.encoder_params.n_feats
+        self.encoder = TextEncoder(encoder.encoder_params, encoder.duration_predictor_params, n_vocab)
+        self.decoder = CFM(n_feats, decoder)
 
         data_statistics = data_statistics or {"mel_mean": 0.0, "mel_std": 1.0}
         self.register_buffer("mel_mean", torch.tensor(data_statistics["mel_mean"]))
@@ -72,33 +52,25 @@ class AcousticModel(torch.nn.Module):
         return model.to(device).eval()
 
     @torch.inference_mode()
-    def synthesise(self, x, x_lengths, n_timesteps, temperature=1.0, spks=None, length_scale=1.0):
-        """Token ids (B, T) → {"mel": (B, n_feats, frames), "mel_lengths", "rtf"}."""
-        start = time.perf_counter()
+    def synthesize(
+        self,
+        x: torch.Tensor,
+        x_lengths: torch.Tensor,
+        n_timesteps: int,
+        temperature: float = 1.0,
+        length_scale: float = 1.0,
+    ) -> torch.Tensor:
+        """Token ids (batch, tokens) → mel-spectrogram (batch, n_feats, frames)."""
+        mu_x, logw, x_mask = self.encoder(x, x_lengths)
 
-        if self.n_spks > 1:
-            spks = self.spk_emb(spks.long())
-
-        mu_x, logw, x_mask = self.encoder(x, x_lengths, spks)
-
-        w = torch.exp(logw) * x_mask
-        w_ceil = torch.ceil(w) * length_scale
+        w_ceil = torch.ceil(torch.exp(logw) * x_mask) * length_scale
         y_lengths = torch.clamp_min(torch.sum(w_ceil, [1, 2]), 1).long()
         y_max_length = y_lengths.max()
-        y_max_length_ = fix_len_compatibility(y_max_length)
 
-        y_mask = sequence_mask(y_lengths, y_max_length_).unsqueeze(1).to(x_mask.dtype)
+        y_mask = sequence_mask(y_lengths, fix_len_compatibility(y_max_length)).unsqueeze(1).to(x_mask.dtype)
         attn_mask = x_mask.unsqueeze(-1) * y_mask.unsqueeze(2)
-        attn = generate_path(w_ceil.squeeze(1), attn_mask.squeeze(1)).unsqueeze(1)
+        attn = generate_path(w_ceil.squeeze(1), attn_mask.squeeze(1))
+        mu_y = torch.matmul(attn.transpose(1, 2), mu_x.transpose(1, 2)).transpose(1, 2)
 
-        mu_y = torch.matmul(attn.squeeze(1).transpose(1, 2), mu_x.transpose(1, 2)).transpose(1, 2)
-
-        decoder_outputs = self.decoder(mu_y, y_mask, n_timesteps, temperature, spks)
-        decoder_outputs = decoder_outputs[:, :, :y_max_length]
-
-        elapsed = time.perf_counter() - start
-        return {
-            "mel": denormalize(decoder_outputs, self.mel_mean, self.mel_std),
-            "mel_lengths": y_lengths,
-            "rtf": elapsed * SAMPLE_RATE / (decoder_outputs.shape[-1] * HOP_LENGTH),
-        }
+        mel = self.decoder(mu_y, y_mask, n_timesteps, temperature)[:, :, :y_max_length]
+        return mel * self.mel_std.unsqueeze(-1) + self.mel_mean.unsqueeze(-1)

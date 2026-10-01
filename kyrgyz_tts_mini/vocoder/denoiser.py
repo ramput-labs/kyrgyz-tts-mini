@@ -1,61 +1,34 @@
 import torch
+from torch import nn
 
 
-class Denoiser(torch.nn.Module):
-    """Subtracts the vocoder's bias spectrum to reduce background hiss."""
+class Denoiser(nn.Module):
+    """Subtracts the vocoder's bias spectrum (its output for a silent mel) to reduce background hiss."""
 
-    def __init__(self, vocoder, filter_length=1024, n_overlap=4, win_length=1024, mode="zeros"):
+    def __init__(self, vocoder: nn.Module, filter_length: int = 1024, n_overlap: int = 4, win_length: int = 1024):
         super().__init__()
-        self.filter_length = filter_length
-        self.hop_length = int(filter_length / n_overlap)
+        self.n_fft = filter_length
+        self.hop_length = filter_length // n_overlap
         self.win_length = win_length
-
-        dtype, device = next(vocoder.parameters()).dtype, next(vocoder.parameters()).device
-        self.device = device
-        if mode == "zeros":
-            mel_input = torch.zeros((1, 80, 88), dtype=dtype, device=device)
-        elif mode == "normal":
-            mel_input = torch.randn((1, 80, 88), dtype=dtype, device=device)
-        else:
-            raise Exception(f"Mode {mode} if not supported")
-
-        def stft_fn(audio, n_fft, hop_length, win_length, window):
-            spec = torch.stft(
-                audio,
-                n_fft=n_fft,
-                hop_length=hop_length,
-                win_length=win_length,
-                window=window,
-                return_complex=True,
-            )
-            spec = torch.view_as_real(spec)
-            return torch.sqrt(spec.pow(2).sum(-1)), torch.atan2(spec[..., -1], spec[..., 0])
-
-        self.stft = lambda x: stft_fn(
-            audio=x,
-            n_fft=self.filter_length,
-            hop_length=self.hop_length,
-            win_length=self.win_length,
-            window=torch.hann_window(self.win_length, device=device),
-        )
-        self.istft = lambda x, y: torch.istft(
-            torch.complex(x * torch.cos(y), x * torch.sin(y)),
-            n_fft=self.filter_length,
-            hop_length=self.hop_length,
-            win_length=self.win_length,
-            window=torch.hann_window(self.win_length, device=device),
-        )
+        param = next(vocoder.parameters())
+        self.register_buffer("window", torch.hann_window(win_length, device=param.device))
 
         with torch.no_grad():
-            bias_audio = vocoder(mel_input).float().squeeze(0)
+            bias_audio = vocoder(torch.zeros((1, 80, 88), dtype=param.dtype, device=param.device)).float().squeeze(0)
             bias_spec, _ = self.stft(bias_audio)
+        self.register_buffer("bias_spec", bias_spec[:, :, :1])
 
-        self.register_buffer("bias_spec", bias_spec[:, :, 0][:, :, None])
+    def stft(self, audio):
+        spec = torch.view_as_real(
+            torch.stft(audio, self.n_fft, self.hop_length, self.win_length, self.window, return_complex=True)
+        )
+        return torch.sqrt(spec.pow(2).sum(-1)), torch.atan2(spec[..., -1], spec[..., 0])
+
+    def istft(self, magnitude, phase):
+        spec = torch.complex(magnitude * torch.cos(phase), magnitude * torch.sin(phase))
+        return torch.istft(spec, self.n_fft, self.hop_length, self.win_length, self.window)
 
     @torch.inference_mode()
     def forward(self, audio, strength=0.0005):
-        audio_spec, audio_angles = self.stft(audio)
-        audio_spec_denoised = audio_spec - self.bias_spec.to(audio.device) * strength
-        audio_spec_denoised = torch.clamp(audio_spec_denoised, 0.0)
-        audio_denoised = self.istft(audio_spec_denoised, audio_angles)
-        return audio_denoised
+        magnitude, phase = self.stft(audio)
+        return self.istft(torch.clamp(magnitude - self.bias_spec * strength, 0.0), phase)

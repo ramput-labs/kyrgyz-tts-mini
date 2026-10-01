@@ -1,31 +1,22 @@
-
 import torch
+from torch import nn
 
 from kyrgyz_tts_mini.acoustic.decoder import Decoder
 
 
-class CFM(torch.nn.Module):
-    def __init__(self, in_channels, out_channel, cfm_params, decoder_params, n_spks=1, spk_emb_dim=64):
+class CFM(nn.Module):
+    """Conditional flow matching: integrates the decoder's vector field from noise to a mel-spectrogram."""
+
+    def __init__(self, n_feats: int, decoder_params):
         super().__init__()
-        self.n_feats = in_channels
-        self.n_spks = n_spks
-        self.spk_emb_dim = spk_emb_dim
-        self.sigma_min = getattr(cfm_params, "sigma_min", 1e-4)
+        self.estimator = Decoder(in_channels=2 * n_feats, out_channels=n_feats, **decoder_params)
 
-        in_channels = in_channels + (spk_emb_dim if n_spks > 1 else 0)
-        self.estimator = Decoder(in_channels=in_channels, out_channels=out_channel, **decoder_params)
-
-    @torch.inference_mode()
-    def forward(self, mu, mask, n_timesteps, temperature=1.0, spks=None, cond=None):
-        """Sample a mel-spectrogram (batch, n_feats, frames) conditioned on the encoder output `mu`."""
-        z = torch.randn_like(mu) * temperature
+    def forward(self, mu: torch.Tensor, mask: torch.Tensor, n_timesteps: int, temperature: float = 1.0) -> torch.Tensor:
+        x = torch.randn_like(mu) * temperature
         t_span = torch.linspace(0, 1, n_timesteps + 1, device=mu.device)
-        return self.solve_euler(z, t_span=t_span, mu=mu, mask=mask, spks=spks, cond=cond)
-
-    def solve_euler(self, x, t_span, mu, mask, spks, cond):
         t, dt = t_span[0], t_span[1] - t_span[0]
         for step in range(1, len(t_span)):
-            x = x + dt * self.estimator(x, mask, mu, t, spks, cond)
+            x = x + dt * self.estimator(x, mask, mu, t)
             t = t + dt
             if step < len(t_span) - 1:
                 dt = t_span[step + 1] - t

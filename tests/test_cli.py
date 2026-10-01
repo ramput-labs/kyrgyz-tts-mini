@@ -10,7 +10,9 @@ from kyrgyz_tts_mini.cli import build_parser, main
         ["speak", "-f", "samples/texts.txt", "-o", "out.wav"],
         ["speak"],
         ["doctor", "--device", "cpu"],
-        ["upload", "--public"],
+        ["web", "--port", "8000"],
+        ["download", "woman", "vocoder", "--force"],
+        ["download", "--check"],
     ],
 )
 def test_parser_accepts(argv):
@@ -22,7 +24,7 @@ def test_parser_rejects_unknown_voice():
         build_parser().parse_args(["speak", "салам", "-v", "robot"])
 
 
-def test_download_is_handed_to_the_downloader(capsys):
+def test_download_help(capsys):
     with pytest.raises(SystemExit) as exit_info:
         main(["download", "--help"])
     assert exit_info.value.code == 0

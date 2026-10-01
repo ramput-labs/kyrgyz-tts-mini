@@ -1,61 +1,23 @@
-import numpy as np
 import torch
+import torch.nn.functional as F
 
 
-def sequence_mask(length, max_length=None):
+def sequence_mask(length: torch.Tensor, max_length: int | None = None) -> torch.Tensor:
     if max_length is None:
         max_length = length.max()
     x = torch.arange(max_length, dtype=length.dtype, device=length.device)
     return x.unsqueeze(0) < length.unsqueeze(1)
 
 
-def fix_len_compatibility(length, num_downsamplings_in_unet=2):
-    factor = torch.scalar_tensor(2).pow(num_downsamplings_in_unet)
-    length = (length / factor).ceil() * factor
-    if not torch.onnx.is_in_onnx_export():
-        return length.int().item()
-    else:
-        return length
+def fix_len_compatibility(length: torch.Tensor, num_downsamplings: int = 2) -> int:
+    """Round up to a multiple of the U-Net's total downsampling factor."""
+    factor = 2**num_downsamplings
+    return int(torch.ceil(length / factor).item()) * factor
 
 
-def convert_pad_shape(pad_shape):
-    inverted_shape = pad_shape[::-1]
-    pad_shape = [item for sublist in inverted_shape for item in sublist]
-    return pad_shape
-
-
-def generate_path(duration, mask):
-    device = duration.device
-
+def generate_path(duration: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+    """Hard monotonic alignment (batch, text, frames) from per-token durations."""
     b, t_x, t_y = mask.shape
-    cum_duration = torch.cumsum(duration, 1)
-    path = torch.zeros(b, t_x, t_y, dtype=mask.dtype).to(device=device)
-
-    cum_duration_flat = cum_duration.view(b * t_x)
-    path = sequence_mask(cum_duration_flat, t_y).to(mask.dtype)
-    path = path.view(b, t_x, t_y)
-    path = path - torch.nn.functional.pad(path, convert_pad_shape([[0, 0], [1, 0], [0, 0]]))[:, :-1]
-    path = path * mask
-    return path
-
-
-def denormalize(data, mu, std):
-    if not isinstance(mu, float):
-        if isinstance(mu, list):
-            mu = torch.tensor(mu, dtype=data.dtype, device=data.device)
-        elif isinstance(mu, torch.Tensor):
-            mu = mu.to(data.device)
-        elif isinstance(mu, np.ndarray):
-            mu = torch.from_numpy(mu).to(data.device)
-        mu = mu.unsqueeze(-1)
-
-    if not isinstance(std, float):
-        if isinstance(std, list):
-            std = torch.tensor(std, dtype=data.dtype, device=data.device)
-        elif isinstance(std, torch.Tensor):
-            std = std.to(data.device)
-        elif isinstance(std, np.ndarray):
-            std = torch.from_numpy(std).to(data.device)
-        std = std.unsqueeze(-1)
-
-    return data * std + mu
+    path = sequence_mask(torch.cumsum(duration, 1).view(b * t_x), t_y).to(mask.dtype).view(b, t_x, t_y)
+    path = path - F.pad(path, (0, 0, 1, 0))[:, :-1]
+    return path * mask

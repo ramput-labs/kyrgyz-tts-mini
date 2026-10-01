@@ -19,11 +19,11 @@ ARGS    ?=
 SPEAK   = $(CLI) speak --voice $(VOICE) $(ARGS)
 
 RUFF        := $(VENV)/bin/ruff
-RUFF_OPTS   := --line-length 120 --extend-exclude kyrgyz_tts_mini/acoustic,kyrgyz_tts_mini/vocoder
+RUFF_OPTS   := --line-length 120
 RUFF_CHECK  := $(RUFF) check $(RUFF_OPTS) --select E,F,I,B,UP --ignore E501 --target-version py311
 RUFF_FORMAT := $(RUFF) format $(RUFF_OPTS)
 
-.PHONY: help setup install download check doctor run speak say speak-file web demo upload \
+.PHONY: help setup install download check doctor run speak say speak-file web demo \
         test test-fast lint format clean clean-outputs clean-all clean-models
 
 help: ## Show this help
@@ -50,9 +50,6 @@ download: $(STAMP) ## Download missing models from Hugging Face (ARGS=--force to
 
 check: $(STAMP) ## Verify the installed models against their checksums
 	$(CLI) download --check
-
-upload: $(STAMP) ## Upload local models to Hugging Face (run `.venv/bin/hf auth login` first; ARGS=--public)
-	$(CLI) upload $(ARGS)
 
 doctor: $(STAMP) ## Check environment + models and run a test synthesis
 	$(CLI) doctor

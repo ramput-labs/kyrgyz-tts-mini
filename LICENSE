@@ -20,6 +20,9 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
+This license covers the code only. The model weights (woman.ckpt, man.ckpt, vocoder.pt)
+are licensed separately: https://huggingface.co/ramput-labs/kyrgyz-tts-mini/blob/main/LICENSE
+
 
 Third-party code in kyrgyz_tts_mini/acoustic and kyrgyz_tts_mini/vocoder
 
@@ -48,7 +51,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ================================================================================
-kyrgyz_tts_mini/vocoder/models.py — adapted from HiFi-GAN (MIT)
+kyrgyz_tts_mini/vocoder/hifigan.py — adapted from HiFi-GAN (MIT)
 https://github.com/jik876/hifi-gan
 
 Copyright (c) 2020 Jungil Kong
