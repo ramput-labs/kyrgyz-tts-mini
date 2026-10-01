@@ -1,7 +1,3 @@
-#!/usr/bin/env python
-from __future__ import annotations
-
-import argparse
 from pathlib import Path
 
 import gradio as gr
@@ -14,14 +10,7 @@ from tts_mini.text import dropped_characters
 EXAMPLES = Path(__file__).resolve().parents[1] / "samples" / "texts.txt"
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--device", default=None, help="cuda, mps or cpu (default: best available)")
-    ap.add_argument("--host", default="127.0.0.1")
-    ap.add_argument("--port", type=int, default=7860)
-    ap.add_argument("--share", action="store_true", help="Create a public gradio.live link.")
-    args = ap.parse_args()
-
+def launch(args) -> None:
     tts = get_tts(args.device)
     voices = list(config.VOICES)
     for voice in voices:
@@ -84,7 +73,3 @@ def main() -> None:
         text.submit(run, inputs, [out, info])
 
     ui.launch(server_name=args.host, server_port=args.port, share=args.share)
-
-
-if __name__ == "__main__":
-    main()

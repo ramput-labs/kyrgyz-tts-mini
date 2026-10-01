@@ -26,7 +26,7 @@ class _AttrDict(dict):
 
 def _require(path):
     if not path.exists():
-        raise FileNotFoundError(f"{path} not found. Run `make setup` (or `tts-mini download`) first.")
+        raise FileNotFoundError(f"{path} not found. Run `make setup` (or `python -m tts_mini download`) first.")
     return path
 
 

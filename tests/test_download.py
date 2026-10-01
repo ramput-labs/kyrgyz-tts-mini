@@ -2,7 +2,6 @@
 
 import hashlib
 import shutil
-import zipfile
 
 import pytest
 
@@ -40,28 +39,14 @@ def drive(monkeypatch, tmp_path):
 
 
 def file_model(tmp_path, data=b"weights", **overrides):
-    fields = dict(name="voice", path=tmp_path / "models" / "voice.ckpt", size=len(data), sha256=digest(data))
-    return d.Model(**{**fields, "gdrive": ("primary", "backup"), **overrides})
-
-
-def folder_model(tmp_path, zip_bytes: bytes, weights=b"w" * 100, **overrides):
     fields = dict(
-        name="asr",
-        path=tmp_path / "models" / "whisper",
-        size=len(zip_bytes),
-        sha256=digest(zip_bytes),
-        folder=True,
-        gdrive=("zip-id",),
-        weights=(("model.safetensors", digest(weights)),),
+        name="voice",
+        path=tmp_path / "models" / "voice.ckpt",
+        size=len(data),
+        sha256=digest(data),
+        gdrive=("primary", "backup"),
     )
     return d.Model(**{**fields, **overrides})
-
-
-def make_zip(path, files: dict[str, bytes]) -> bytes:
-    with zipfile.ZipFile(path, "w") as z:
-        for name, data in files.items():
-            z.writestr(name, data)
-    return path.read_bytes()
 
 
 def test_file_is_verified_and_installed_atomically(tmp_path, drive):
@@ -121,42 +106,6 @@ def test_transient_error_is_retried(tmp_path, drive, monkeypatch):
     assert drive.calls == ["primary"]
 
 
-def test_folder_zip_with_or_without_top_folder(tmp_path, drive):
-    for i, prefix in enumerate(["whisper/", ""]):
-        data = make_zip(drive / "zip-id", {f"{prefix}config.json": b"{}", f"{prefix}model.safetensors": b"w" * 100})
-        model = folder_model(tmp_path / str(i), data)
-
-        d.fetch(model)
-
-        assert sorted(p.name for p in model.path.iterdir()) == ["config.json", "model.safetensors"]
-        assert d.problem(model) is None
-        assert not list(model.path.parent.glob(".extract-*"))
-
-
-def test_folder_with_wrong_weights_is_rejected(tmp_path, drive):
-    data = make_zip(drive / "zip-id", {"config.json": b"{}", "model.safetensors": b"other"})
-
-    with pytest.raises(d.DownloadError):
-        d.fetch(folder_model(tmp_path, data))
-    assert not (tmp_path / "models" / "whisper").exists()
-
-
-def test_pack_then_install_roundtrip(tmp_path, drive, monkeypatch):
-    source = tmp_path / "installed" / "whisper"
-    source.mkdir(parents=True)
-    (source / "config.json").write_text("{}")
-    (source / "model.safetensors").write_bytes(b"w" * 100)
-    monkeypatch.setattr(d, "MODELS", [folder_model(tmp_path, b"", path=source)])
-
-    d.pack(tmp_path / "upload")
-    archive = tmp_path / "upload" / "whisper.zip"
-    shutil.copyfile(archive, drive / "zip-id")
-    target = folder_model(tmp_path, archive.read_bytes())
-
-    d.fetch(target)
-    assert (target.path / "model.safetensors").read_bytes() == b"w" * 100
-
-
 def test_not_enough_disk_space(tmp_path, drive, monkeypatch):
     monkeypatch.setattr(d.shutil, "disk_usage", lambda _: shutil._ntuple_diskusage(10, 10, 0))
     with pytest.raises(d.DownloadError, match="disk space"):
@@ -187,4 +136,15 @@ def test_manifest_is_consistent():
     assert len(names) == len(set(names))
     for m in d.MODELS:
         assert len(m.sha256) == 64 and m.size > 0
-        assert m.gdrive or m.hf_repo, f"{m.name} has no mirror"
+        assert m.gdrive, f"{m.name} has no mirror"
+
+
+def test_pack_copies_installed_models(tmp_path, monkeypatch, capsys):
+    model = file_model(tmp_path, path=tmp_path / "voice.ckpt")
+    model.path.write_bytes(b"weights")
+    monkeypatch.setattr(d, "MODELS", [model])
+
+    d.pack(tmp_path / "upload")
+
+    assert (tmp_path / "upload" / "voice.ckpt").read_bytes() == b"weights"
+    assert digest(b"weights") in capsys.readouterr().out

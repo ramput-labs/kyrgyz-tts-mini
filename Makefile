@@ -10,15 +10,17 @@ VENV    := .venv
 PY      := $(VENV)/bin/python
 CLI     := $(PY) -m tts_mini
 STAMP   := $(VENV)/.installed
-DISK_GB := 4
 
 TEXT    ?= Саламатсызбы! Бүгүн аба ырайы абдан жакшы.
 VOICE   ?= woman
 FILE    ?= samples/texts.txt
 ARGS    ?=
 
-.PHONY: help setup install download check doctor run speak say speak-file demo \
-        test test-fast lint format build clean clean-outputs clean-all clean-models
+RUFF      := --line-length 120 --extend-exclude tts_mini/acoustic,tts_mini/vocoder
+RUFF_LINT := --select E,F,I,B,UP --ignore E501 --target-version py311
+
+.PHONY: help setup install download check doctor run speak say speak-file web \
+        test test-fast lint format clean clean-outputs clean-all clean-models
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -29,17 +31,17 @@ setup: install download doctor ## One-time setup: environment + models + health 
 
 $(PY):
 	@test -n "$(PYTHON)" || { echo "error: Python 3.11+ not found; install it or run: make setup PYTHON=/path/to/python3.12" >&2; exit 1; }
-	@$(PYTHON) scripts/check_env.py $(DISK_GB)
+	@$(PYTHON) -c "import sys, venv, ensurepip; sys.exit(sys.version_info < (3, 11))" || { echo "error: need Python 3.11+ with venv (Debian/Ubuntu: sudo apt install python3-venv)" >&2; exit 1; }
 	$(PYTHON) -m venv $(VENV)
 	$(PY) -m pip install --quiet --upgrade pip
 
-$(STAMP): $(PY) pyproject.toml
-	$(PY) -m pip install --quiet -e ".[dev]"
+$(STAMP): $(PY) requirements.txt
+	$(PY) -m pip install --quiet -r requirements.txt
 	@touch $@
 
-install: $(STAMP) ## Create .venv and install (re-runs when pyproject.toml changes)
+install: $(STAMP) ## Create .venv and install (re-runs when requirements.txt changes)
 
-download: $(STAMP) ## Download missing models, verified by SHA-256 (ARGS="--source gdrive|--force")
+download: $(STAMP) ## Download missing models, verified by SHA-256 (ARGS=--force to re-download)
 	$(CLI) download $(ARGS)
 
 check: $(STAMP) ## Verify the installed models against their checksums
@@ -63,9 +65,8 @@ say: $(STAMP) ## Interactive: type a line, hear it
 speak-file: $(STAMP) ## Speak every line of a text file: make speak-file FILE=story.txt
 	$(CLI) speak --file "$(FILE)" --voice $(VOICE) $(ARGS)
 
-demo: $(STAMP) ## Gradio web UI: type text, listen, download (ARGS=--share for a public link)
-	$(PY) -m pip install --quiet -e ".[demo]"
-	$(PY) scripts/gradio_demo.py $(ARGS)
+web: $(STAMP) ## Web UI at http://127.0.0.1:7860 (ARGS=--share for a public link)
+	$(CLI) web $(ARGS)
 
 # --- develop ---------------------------------------------------------------------
 
@@ -73,24 +74,20 @@ test: $(STAMP) ## Run all tests (model tests skip when models are missing)
 	$(PY) -m pytest $(ARGS)
 
 test-fast: $(STAMP) ## Run the tests that need no models
-	$(PY) -m pytest -m "not models" $(ARGS)
+	$(PY) -m pytest --ignore tests/test_engine.py $(ARGS)
 
 lint: $(STAMP) ## Lint and check formatting
-	$(VENV)/bin/ruff check src tests scripts
-	$(VENV)/bin/ruff format --check src tests scripts
+	$(VENV)/bin/ruff check $(RUFF) $(RUFF_LINT) .
+	$(VENV)/bin/ruff format --check $(RUFF) .
 
 format: $(STAMP) ## Fix lint issues and format
-	$(VENV)/bin/ruff check --fix src tests scripts
-	$(VENV)/bin/ruff format src tests scripts
-
-build: $(STAMP) ## Build wheel + sdist into dist/
-	$(PY) -m build
+	$(VENV)/bin/ruff check --fix $(RUFF) $(RUFF_LINT) .
+	$(VENV)/bin/ruff format $(RUFF) .
 
 # --- clean -----------------------------------------------------------------------
 
-clean: ## Remove caches and build artifacts
+clean: ## Remove caches
 	find . -path ./$(VENV) -prune -o \( -name __pycache__ -o -name .pytest_cache -o -name .ruff_cache \) -type d -print -exec rm -rf {} +
-	rm -rf build dist src/*.egg-info
 
 clean-outputs: ## Remove generated audio in outputs/
 	rm -rf outputs

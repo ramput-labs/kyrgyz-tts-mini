@@ -1,10 +1,11 @@
 """Kyrgyz text-to-speech.
 
-tts-mini speak "Саламатсызбы!" --voice woman --play   text → outputs/<time>-woman.wav
-tts-mini speak -f samples/texts.txt                   every line of a file, joined into one WAV
-tts-mini speak                                        interactive: type a line, hear it
-tts-mini doctor                                       environment, models and a test synthesis
-tts-mini download                                     fetch missing models (see: download --help)
+python -m tts_mini speak "Саламатсызбы!" --voice woman --play   text → outputs/<time>-woman.wav
+python -m tts_mini speak -f samples/texts.txt                   every line of a file, joined into one WAV
+python -m tts_mini speak                                        interactive: type a line, hear it
+python -m tts_mini web                                          web UI at http://127.0.0.1:7860
+python -m tts_mini doctor                                       environment, models and a test synthesis
+python -m tts_mini download                                     fetch missing models (see: download --help)
 """
 
 import argparse
@@ -155,9 +156,17 @@ def cmd_doctor(args) -> None:
         sys.exit(1)
 
 
+def cmd_web(args) -> None:
+    try:
+        from tts_mini import web
+    except ImportError:
+        sys.exit("error: the web UI needs Gradio: pip install -r requirements.txt")
+    web.launch(args)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="tts-mini", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+        prog="python -m tts_mini", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     sub = parser.add_subparsers(dest="command", required=True, metavar="command")
 
@@ -177,6 +186,13 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("doctor", help="check the environment and models, run a test synthesis")
     p.add_argument("--device", help="cuda, mps or cpu (default: best available)")
     p.set_defaults(func=cmd_doctor)
+
+    p = sub.add_parser("web", help="web UI in the browser")
+    p.add_argument("--device", help="cuda, mps or cpu (default: best available)")
+    p.add_argument("--host", default="127.0.0.1")
+    p.add_argument("--port", type=int, default=7860)
+    p.add_argument("--share", action="store_true", help="create a public gradio.live link")
+    p.set_defaults(func=cmd_web)
 
     sub.add_parser("download", help="download / verify / pack the models (see: download --help)", add_help=False)
     return parser

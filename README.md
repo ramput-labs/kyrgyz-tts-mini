@@ -25,20 +25,20 @@ make run          # say a sentence in both voices → outputs/
 git clone <repo-url> tts-mini && cd tts-mini
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e ".[dev]"
-tts-mini download     # fetch models into models/
-tts-mini doctor       # check everything works
+pip install -r requirements.txt
+python -m tts_mini download   # fetch models into models/
+python -m tts_mini doctor     # check everything works
 ```
 
 ## Examples
 
 | Make | Without Make |
 | --- | --- |
-| `make speak TEXT="Кош келиңиз!"` | `tts-mini speak "Кош келиңиз!"` |
-| `make speak TEXT="Салам" VOICE=man ARGS=--play` | `tts-mini speak "Салам" -v man --play` |
-| `make speak-file FILE=samples/texts.txt` | `tts-mini speak -f samples/texts.txt` |
-| `make say` (type → listen) | `tts-mini speak` |
-| `make demo` (web UI) | `pip install -e ".[demo]" && python scripts/gradio_demo.py` |
+| `make speak TEXT="Кош келиңиз!"` | `python -m tts_mini speak "Кош келиңиз!"` |
+| `make speak TEXT="Салам" VOICE=man ARGS=--play` | `python -m tts_mini speak "Салам" -v man --play` |
+| `make speak-file FILE=samples/texts.txt` | `python -m tts_mini speak -f samples/texts.txt` |
+| `make say` (type → listen) | `python -m tts_mini speak` |
+| `make web` (web UI) | `python -m tts_mini web` |
 
 Output WAVs go to `outputs/` unless you pass `-o file.wav`. The web UI runs at http://127.0.0.1:7860.
 
@@ -52,7 +52,7 @@ speech = get_tts().synthesize("Саламатсызбы!", "woman")
 save(speech.audio, speech.sample_rate, "hello.wav")
 ```
 
-**Options** for `tts-mini speak`:
+**Options** for `python -m tts_mini speak`:
 
 | Option | Default | |
 | --- | --- | --- |
@@ -72,7 +72,7 @@ make lint         # or: make format
 make help         # every command
 ```
 
-Without Make: `pytest`, `ruff check src tests scripts`.
+Without Make: `pytest`.
 
 Env vars: `TTS_MINI_MODELS` (models folder), `TTS_MINI_OUTPUTS` (output folder).
 
@@ -89,8 +89,7 @@ Only Kyrgyz Cyrillic is spoken; digits and Latin letters are skipped. Write numb
 
 ## License
 
-Code: [MIT](LICENSE). Some model code is adapted from open-source projects, see
-[THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES).
+Code: [MIT](LICENSE).
 Voice weights: trained by the National Commission on the State Language under the President of the
 Kyrgyz Republic (Mamtil) / Ulutsoft LLC. No license is published, so ask them before redistributing or
 using commercially.

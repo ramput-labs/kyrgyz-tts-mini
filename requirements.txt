@@ -1,0 +1,10 @@
+torch>=2.6
+numpy
+einops
+omegaconf
+soundfile
+sounddevice
+gdown
+gradio>=4
+pytest
+ruff

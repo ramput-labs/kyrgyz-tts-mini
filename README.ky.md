@@ -25,20 +25,20 @@ make run          # бир сүйлөмдү эки үн менен окуйт �
 git clone <repo-url> tts-mini && cd tts-mini
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e ".[dev]"
-tts-mini download     # моделдерди models/ папкасына жүктөө
-tts-mini doctor       # баары иштеп жатканын текшерүү
+pip install -r requirements.txt
+python -m tts_mini download   # моделдерди models/ папкасына жүктөө
+python -m tts_mini doctor     # баары иштеп жатканын текшерүү
 ```
 
 ## Мисалдар
 
 | Make | Make'сиз |
 | --- | --- |
-| `make speak TEXT="Кош келиңиз!"` | `tts-mini speak "Кош келиңиз!"` |
-| `make speak TEXT="Салам" VOICE=man ARGS=--play` | `tts-mini speak "Салам" -v man --play` |
-| `make speak-file FILE=samples/texts.txt` | `tts-mini speak -f samples/texts.txt` |
-| `make say` (жаз → ук) | `tts-mini speak` |
-| `make demo` (веб-интерфейс) | `pip install -e ".[demo]" && python scripts/gradio_demo.py` |
+| `make speak TEXT="Кош келиңиз!"` | `python -m tts_mini speak "Кош келиңиз!"` |
+| `make speak TEXT="Салам" VOICE=man ARGS=--play` | `python -m tts_mini speak "Салам" -v man --play` |
+| `make speak-file FILE=samples/texts.txt` | `python -m tts_mini speak -f samples/texts.txt` |
+| `make say` (жаз → ук) | `python -m tts_mini speak` |
+| `make web` (веб-интерфейс) | `python -m tts_mini web` |
 
 WAV файлдар `outputs/` папкасына сакталат (же `-o file.wav` менен башка жерге). Веб-интерфейс:
 http://127.0.0.1:7860.
@@ -53,7 +53,7 @@ speech = get_tts().synthesize("Саламатсызбы!", "woman")
 save(speech.audio, speech.sample_rate, "salam.wav")
 ```
 
-**`tts-mini speak` параметрлери:**
+**`python -m tts_mini speak` параметрлери:**
 
 | Параметр | Демейки | |
 | --- | --- | --- |
@@ -73,7 +73,7 @@ make lint         # же: make format
 make help         # бардык буйруктар
 ```
 
-Make'сиз: `pytest`, `ruff check src tests scripts`.
+Make'сиз: `pytest`.
 
 Чөйрө өзгөрмөлөрү: `TTS_MINI_MODELS` (моделдердин папкасы), `TTS_MINI_OUTPUTS` (натыйжалардын папкасы).
 
@@ -90,8 +90,7 @@ Make'сиз: `pytest`, `ruff check src tests scripts`.
 
 ## Лицензия
 
-Код: [MIT](LICENSE). Моделдин кээ бир коду ачык булактуу долбоорлордон алынган, караңыз:
-[THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES).
+Код: [MIT](LICENSE).
 Үн моделдери: КР Президентине караштуу Мамлекеттик тил боюнча улуттук комиссия (Мамтил) / Ulutsoft LLC
 үйрөткөн. Лицензиясы жарыяланган эмес, ошондуктан кайра таратуудан же коммерциялык колдонуудан мурун
 алардан уруксат сураңыз.

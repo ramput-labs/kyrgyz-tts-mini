@@ -5,10 +5,7 @@ import pytest
 
 from tts_mini.download import MODELS, is_installed
 
-pytestmark = [
-    pytest.mark.models,
-    pytest.mark.skipif(not all(map(is_installed, MODELS)), reason="models not downloaded (run `make setup`)"),
-]
+pytestmark = pytest.mark.skipif(not all(map(is_installed, MODELS)), reason="models not downloaded (run `make setup`)")
 
 
 @pytest.fixture(scope="module")
