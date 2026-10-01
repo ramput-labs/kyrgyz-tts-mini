@@ -1,5 +1,3 @@
-""" from https://github.com/jik876/hifi-gan """
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F

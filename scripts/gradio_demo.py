@@ -1,9 +1,4 @@
 #!/usr/bin/env python
-"""Tiny web UI: type Kyrgyz text, pick a voice, listen and download the WAV.
-
-make demo            # or: python scripts/gradio_demo.py --share
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -12,9 +7,9 @@ from pathlib import Path
 import gradio as gr
 import numpy as np
 
-from kyrgyz_tts import config
-from kyrgyz_tts.engine import get_tts
-from kyrgyz_tts.text import dropped_characters
+from tts_mini import config
+from tts_mini.engine import get_tts
+from tts_mini.text import dropped_characters
 
 EXAMPLES = Path(__file__).resolve().parents[1] / "samples" / "texts.txt"
 
@@ -29,7 +24,7 @@ def main() -> None:
 
     tts = get_tts(args.device)
     voices = list(config.VOICES)
-    for voice in voices:  # load everything up front so the first click is fast
+    for voice in voices:
         tts.warm_up(voice)
 
     def run(text, voice, rate, temperature, steps, denoise):
@@ -63,8 +58,8 @@ def main() -> None:
     if EXAMPLES.exists():
         examples = [[line.strip()] for line in EXAMPLES.read_text(encoding="utf-8").splitlines() if line.strip()]
 
-    with gr.Blocks(title="kyrgyz-tts") as ui:
-        gr.Markdown("## kyrgyz-tts · Кыргызча текстти үнгө айландыруу")
+    with gr.Blocks(title="tts-mini") as ui:
+        gr.Markdown("## tts-mini · Кыргызча текстти үнгө айландыруу")
         with gr.Row():
             with gr.Column():
                 text = gr.Textbox(

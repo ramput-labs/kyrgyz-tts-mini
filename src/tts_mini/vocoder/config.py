@@ -1,4 +1,3 @@
-"""HiFi-GAN v1 hyperparameters (only the generator fields are used at inference)."""
 v1 = {
     "resblock": "1",
     "num_gpus": 0,

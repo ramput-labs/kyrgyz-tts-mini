@@ -1,4 +1,3 @@
-"""U-Net estimator for conditional flow matching (from Matcha-TTS, inference only)."""
 import math
 from typing import Optional
 
@@ -7,7 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from einops import pack, rearrange, repeat
 
-from kyrgyz_tts.matcha.transformer import BasicTransformerBlock
+from tts_mini.acoustic.transformer import BasicTransformerBlock
 
 
 class SinusoidalPosEmb(torch.nn.Module):
@@ -117,8 +116,6 @@ class TimestepEmbedding(nn.Module):
 
 
 class Upsample1D(nn.Module):
-    """2× upsampling by transposed convolution, or nearest-neighbour + optional convolution."""
-
     def __init__(self, channels, use_conv=False, use_conv_transpose=True, out_channels=None, name="conv"):
         super().__init__()
         self.channels = channels
@@ -301,7 +298,7 @@ class Decoder(nn.Module):
                 )
             x = rearrange(x, "b t c -> b c t")
             mask_down = rearrange(mask_down, "b t -> b 1 t")
-            hiddens.append(x)  # skip connections
+            hiddens.append(x)
             x = downsample(x * mask_down)
             masks.append(mask_down[:, :, ::2])
 

@@ -1,5 +1,3 @@
-"""kyrgyz-tts engine: Matcha-TTS voices and a HiFi-GAN vocoder."""
-
 import threading
 import time
 import warnings
@@ -9,13 +7,13 @@ from functools import cache
 import numpy as np
 import torch
 
-from kyrgyz_tts import config
-from kyrgyz_tts.audio import pick_device
-from kyrgyz_tts.hifigan.config import v1 as HIFIGAN_V1
-from kyrgyz_tts.hifigan.denoiser import Denoiser
-from kyrgyz_tts.hifigan.models import Generator as HiFiGAN
-from kyrgyz_tts.matcha.model import SAMPLE_RATE, MatchaTTS
-from kyrgyz_tts.text import has_letters, intersperse, text_to_sequence
+from tts_mini import config
+from tts_mini.acoustic.model import SAMPLE_RATE, AcousticModel
+from tts_mini.audio import pick_device
+from tts_mini.text import has_letters, intersperse, text_to_sequence
+from tts_mini.vocoder.config import v1 as VOCODER_CONFIG
+from tts_mini.vocoder.denoiser import Denoiser
+from tts_mini.vocoder.models import Generator as Vocoder
 
 VOICES = tuple(config.VOICES)
 
@@ -28,7 +26,7 @@ class _AttrDict(dict):
 
 def _require(path):
     if not path.exists():
-        raise FileNotFoundError(f"{path} not found. Run `make setup` (or `kyrgyz-tts download`) first.")
+        raise FileNotFoundError(f"{path} not found. Run `make setup` (or `tts-mini download`) first.")
     return path
 
 
@@ -36,7 +34,7 @@ def _require(path):
 class Speech:
     audio: np.ndarray  # mono float32 in [-1, 1]
     sample_rate: int
-    seconds: float  # processing time
+    seconds: float  # synthesis time, not audio length
 
     @property
     def audio_seconds(self) -> float:
@@ -44,27 +42,25 @@ class Speech:
 
 
 class TTS:
-    """Loads voices lazily and the vocoder once; inference is serialized with a lock."""
-
     sample_rate = SAMPLE_RATE
 
     def __init__(self, device: str | None = None):
         self.device = torch.device(device or pick_device())
-        self._voices: dict[str, MatchaTTS] = {}
+        self._voices: dict[str, AcousticModel] = {}
         self._vocoder = self._denoiser = None
         self._lock = threading.Lock()
 
-    def voice(self, name: str) -> MatchaTTS:
+    def voice(self, name: str) -> AcousticModel:
         if name not in self._voices:
-            self._voices[name] = MatchaTTS.from_checkpoint(_require(config.VOICES[name]), self.device)
+            self._voices[name] = AcousticModel.from_checkpoint(_require(config.VOICES[name]), self.device)
         return self._voices[name]
 
-    def vocoder(self) -> tuple[HiFiGAN, Denoiser]:
+    def vocoder(self) -> tuple[Vocoder, Denoiser]:
         if self._vocoder is None:
             path = _require(config.VOCODER)
-            with warnings.catch_warnings():  # HiFi-GAN uses the older (deprecated) weight_norm API
+            with warnings.catch_warnings():  # deprecated weight_norm API
                 warnings.simplefilter("ignore", FutureWarning)
-                vocoder = HiFiGAN(_AttrDict(HIFIGAN_V1)).to(self.device)
+                vocoder = Vocoder(_AttrDict(VOCODER_CONFIG)).to(self.device)
             vocoder.load_state_dict(torch.load(path, map_location=self.device)["generator"])
             vocoder.eval()
             vocoder.remove_weight_norm()
@@ -85,7 +81,6 @@ class TTS:
         steps: int = 10,
         denoiser_strength: float = 0.00025,
     ) -> Speech:
-        """Synthesize `text`. speaking_rate is a length scale: higher is slower."""
         if not has_letters(text):
             raise ValueError("Nothing to say: the text has no Kyrgyz Cyrillic letters.")
         ids = intersperse(text_to_sequence(text), 0)

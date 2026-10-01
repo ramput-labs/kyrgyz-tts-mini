@@ -1,4 +1,3 @@
-"""Text encoder and duration predictor (after glow-tts: https://github.com/jaywalnut310/glow-tts)."""
 
 import math
 
@@ -6,7 +5,7 @@ import torch
 import torch.nn as nn
 from einops import rearrange
 
-from kyrgyz_tts.matcha.utils import sequence_mask
+from tts_mini.acoustic.utils import sequence_mask
 
 
 class LayerNorm(nn.Module):
@@ -92,10 +91,7 @@ class DurationPredictor(nn.Module):
 
 
 class RotaryPositionalEmbeddings(nn.Module):
-    """Rotary position embeddings (https://nn.labml.ai/transformers/rope/index.html).
-
-    Rotates feature pairs by a position-dependent angle; only the first `d` features are rotated.
-    """
+    """Rotary position embeddings; only the first `d` features are rotated."""
 
     def __init__(self, d: int, base: int = 10_000):
         super().__init__()
@@ -332,24 +328,7 @@ class TextEncoder(nn.Module):
         )
 
     def forward(self, x, x_lengths, spks=None):
-        """Run forward pass to the transformer based encoder and duration predictor
-
-        Args:
-            x (torch.Tensor): text input
-                shape: (batch_size, max_text_length)
-            x_lengths (torch.Tensor): text input lengths
-                shape: (batch_size,)
-            spks (torch.Tensor, optional): speaker ids. Defaults to None.
-                shape: (batch_size,)
-
-        Returns:
-            mu (torch.Tensor): average output of the encoder
-                shape: (batch_size, n_feats, max_text_length)
-            logw (torch.Tensor): log duration predicted by the duration predictor
-                shape: (batch_size, 1, max_text_length)
-            x_mask (torch.Tensor): mask for the text input
-                shape: (batch_size, 1, max_text_length)
-        """
+        """Returns mu (B, n_feats, T), log-durations logw (B, 1, T) and x_mask (B, 1, T)."""
         x = self.emb(x) * math.sqrt(self.n_channels)
         x = torch.transpose(x, 1, -1)
         x_mask = torch.unsqueeze(sequence_mask(x_lengths, x.size(2)), 1).to(x.dtype)

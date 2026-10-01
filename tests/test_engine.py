@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from kyrgyz_tts.download import MODELS, is_installed
+from tts_mini.download import MODELS, is_installed
 
 pytestmark = [
     pytest.mark.models,
@@ -13,7 +13,7 @@ pytestmark = [
 
 @pytest.fixture(scope="module")
 def tts():
-    from kyrgyz_tts.engine import get_tts
+    from tts_mini.engine import get_tts
 
     return get_tts()
 

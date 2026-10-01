@@ -1,8 +1,3 @@
-"""Matcha-TTS acoustic model, inference only (https://github.com/shivammehta25/Matcha-TTS).
-
-Checkpoints are PyTorch Lightning files; this module reads their hyperparameters and weights
-directly, so Lightning is not needed at inference time.
-"""
 import collections
 import functools
 import time
@@ -12,11 +7,11 @@ from pathlib import Path
 import omegaconf
 import torch
 
-from kyrgyz_tts.matcha.flow_matching import CFM
-from kyrgyz_tts.matcha.text_encoder import TextEncoder
-from kyrgyz_tts.matcha.utils import denormalize, fix_len_compatibility, generate_path, sequence_mask
+from tts_mini.acoustic.flow_matching import CFM
+from tts_mini.acoustic.text_encoder import TextEncoder
+from tts_mini.acoustic.utils import denormalize, fix_len_compatibility, generate_path, sequence_mask
 
-# torch>=2.6 loads with weights_only=True; allowlist the config/optimizer objects Lightning pickles.
+# torch>=2.6 loads with weights_only=True; allowlist the objects pickled in the checkpoints.
 CHECKPOINT_SAFE_GLOBALS = [
     omegaconf.dictconfig.DictConfig,
     omegaconf.listconfig.ListConfig,
@@ -36,7 +31,7 @@ SAMPLE_RATE = 22050
 HOP_LENGTH = 256
 
 
-class MatchaTTS(torch.nn.Module):
+class AcousticModel(torch.nn.Module):
     def __init__(self, n_vocab, n_spks, spk_emb_dim, n_feats, encoder, decoder, cfm, data_statistics, **_training_only):
         super().__init__()
         self.n_vocab = n_vocab
@@ -69,7 +64,7 @@ class MatchaTTS(torch.nn.Module):
         self.register_buffer("mel_std", torch.tensor(data_statistics["mel_std"]))
 
     @classmethod
-    def from_checkpoint(cls, path: str | Path, device: torch.device | str = "cpu") -> "MatchaTTS":
+    def from_checkpoint(cls, path: str | Path, device: torch.device | str = "cpu") -> "AcousticModel":
         with torch.serialization.safe_globals(CHECKPOINT_SAFE_GLOBALS):
             checkpoint = torch.load(path, map_location=device)
         model = cls(**checkpoint["hyper_parameters"])
@@ -78,25 +73,12 @@ class MatchaTTS(torch.nn.Module):
 
     @torch.inference_mode()
     def synthesise(self, x, x_lengths, n_timesteps, temperature=1.0, spks=None, length_scale=1.0):
-        """Generate a mel-spectrogram from token ids.
-
-        Args:
-            x: token ids, shape (batch, max_text_length)
-            x_lengths: text lengths, shape (batch,)
-            n_timesteps: Euler ODE steps in the decoder
-            temperature: variance of the starting noise
-            spks: speaker ids, shape (batch,), for multi-speaker models
-            length_scale: speaking pace; higher is slower
-
-        Returns:
-            {"mel": (batch, n_feats, frames) denormalized mel, "mel_lengths": (batch,), "rtf": float}
-        """
+        """Token ids (B, T) → {"mel": (B, n_feats, frames), "mel_lengths", "rtf"}."""
         start = time.perf_counter()
 
         if self.n_spks > 1:
             spks = self.spk_emb(spks.long())
 
-        # Encoder outputs `mu_x` and log-scaled token durations `logw`
         mu_x, logw, x_mask = self.encoder(x, x_lengths, spks)
 
         w = torch.exp(logw) * x_mask
@@ -105,15 +87,12 @@ class MatchaTTS(torch.nn.Module):
         y_max_length = y_lengths.max()
         y_max_length_ = fix_len_compatibility(y_max_length)
 
-        # Alignment map from the predicted durations
         y_mask = sequence_mask(y_lengths, y_max_length_).unsqueeze(1).to(x_mask.dtype)
         attn_mask = x_mask.unsqueeze(-1) * y_mask.unsqueeze(2)
         attn = generate_path(w_ceil.squeeze(1), attn_mask.squeeze(1)).unsqueeze(1)
 
-        # Align encoded text and get mu_y
         mu_y = torch.matmul(attn.squeeze(1).transpose(1, 2), mu_x.transpose(1, 2)).transpose(1, 2)
 
-        # Trace the probability flow from noise to mel
         decoder_outputs = self.decoder(mu_y, y_mask, n_timesteps, temperature, spks)
         decoder_outputs = decoder_outputs[:, :, :y_max_length]
 

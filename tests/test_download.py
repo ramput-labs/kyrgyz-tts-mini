@@ -6,7 +6,7 @@ import zipfile
 
 import pytest
 
-import kyrgyz_tts.download as d
+import tts_mini.download as d
 
 
 def digest(data: bytes) -> str:
@@ -14,8 +14,6 @@ def digest(data: bytes) -> str:
 
 
 class FakeDrive:
-    """`drive / "file-id"` is where that file lives; `calls` lists the requested ids."""
-
     def __init__(self, folder):
         self.folder = folder
         self.calls = []
@@ -26,7 +24,6 @@ class FakeDrive:
 
 @pytest.fixture
 def drive(monkeypatch, tmp_path):
-    """A folder standing in for Google Drive (file id → file); records every request."""
     fake_drive = FakeDrive(tmp_path / "drive")
     fake_drive.folder.mkdir()
 
@@ -79,7 +76,7 @@ def test_file_is_verified_and_installed_atomically(tmp_path, drive):
 
 
 def test_falls_back_to_the_next_mirror(tmp_path, drive):
-    (drive / "backup").write_bytes(b"weights")  # primary is gone
+    (drive / "backup").write_bytes(b"weights")
     model = file_model(tmp_path)
 
     d.fetch(model)
@@ -121,7 +118,7 @@ def test_transient_error_is_retried(tmp_path, drive, monkeypatch):
 
     monkeypatch.setattr(d, "gdrive_download", flaky)
     d.fetch(file_model(tmp_path))
-    assert drive.calls == ["primary"]  # the second attempt reached the mirror
+    assert drive.calls == ["primary"]
 
 
 def test_folder_zip_with_or_without_top_folder(tmp_path, drive):

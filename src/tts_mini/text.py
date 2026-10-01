@@ -1,8 +1,4 @@
-"""Kyrgyz text → token ids for the kyrgyz-tts Matcha voices.
-
-The voices were trained on lowercased Cyrillic characters (no phonemizer). Characters outside
-the symbol set, such as digits and Latin letters, are dropped.
-"""
+"""Kyrgyz text → token ids. Voices use raw lowercase Cyrillic (no phonemizer); other characters are dropped."""
 
 import re
 
@@ -19,7 +15,6 @@ _whitespace_re = re.compile(r"\s+")
 
 
 def clean(text: str) -> str:
-    """Lowercase and collapse whitespace (Matcha's `basic_cleaners`)."""
     return _whitespace_re.sub(" ", text.lower())
 
 
@@ -28,7 +23,6 @@ def text_to_sequence(text: str) -> list[int]:
 
 
 def intersperse(lst: list, item) -> list:
-    """Put `item` between and around every element: [a, b] -> [item, a, item, b, item]."""
     result = [item] * (len(lst) * 2 + 1)
     result[1::2] = lst
     return result
@@ -39,5 +33,4 @@ def has_letters(text: str) -> bool:
 
 
 def dropped_characters(text: str) -> str:
-    """Characters of `text` the model cannot pronounce (they are skipped)."""
     return "".join(dict.fromkeys(c for c in clean(text) if c not in _symbol_to_id))

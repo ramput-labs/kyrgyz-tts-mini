@@ -1,9 +1,4 @@
-# kyrgyz-tts — Kyrgyz text-to-speech
-#
-#   make setup   one-time: environment, models, health check (safe to re-run)
-#   make run     demo
-#   make demo    web UI (Gradio)
-#   make help    all targets
+# tts-mini — run `make help` for all targets
 
 SHELL := bash
 .SHELLFLAGS := -eu -o pipefail -c
@@ -13,7 +8,7 @@ MAKEFLAGS += --no-print-directory
 PYTHON  ?= $(shell for p in python3.12 python3.13 python3.11 python3; do command -v $$p >/dev/null 2>&1 && { echo $$p; break; }; done)
 VENV    := .venv
 PY      := $(VENV)/bin/python
-CLI     := $(PY) -m kyrgyz_tts
+CLI     := $(PY) -m tts_mini
 STAMP   := $(VENV)/.installed
 DISK_GB := 4
 

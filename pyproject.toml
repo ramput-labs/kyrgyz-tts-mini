@@ -3,14 +3,14 @@ requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "kyrgyz-tts"
+name = "tts-mini"
 dynamic = ["version"]
-description = "Kyrgyz text-to-speech (Matcha-TTS + HiFi-GAN)"
+description = "Small, fast Kyrgyz text-to-speech"
 readme = "README.md"
 license = "MIT"
-license-files = ["LICENSE", "THIRD_PARTY_LICENSE-Matcha-TTS"]
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES"]
 requires-python = ">=3.11"
-keywords = ["kyrgyz", "tts", "text-to-speech", "matcha-tts"]
+keywords = ["kyrgyz", "tts", "text-to-speech"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Natural Language :: Kyrgyz",
@@ -20,7 +20,7 @@ dependencies = [
     "torch>=2.6",
     "numpy",
     "einops",
-    "omegaconf",               # unpickling checkpoint hyperparameters
+    "omegaconf",
     "soundfile",
     "sounddevice",
     "gdown",
@@ -31,10 +31,10 @@ demo = ["gradio>=4"]
 dev = ["pytest", "ruff", "build"]
 
 [project.scripts]
-kyrgyz-tts = "kyrgyz_tts.cli:main"
+tts-mini = "tts_mini.cli:main"
 
 [tool.setuptools.dynamic]
-version = { attr = "kyrgyz_tts.__version__" }
+version = { attr = "tts_mini.__version__" }
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -46,7 +46,7 @@ markers = ["models: needs the downloaded models (deselect with -m 'not models')"
 [tool.ruff]
 line-length = 120
 src = ["src"]
-extend-exclude = ["src/kyrgyz_tts/matcha", "src/kyrgyz_tts/hifigan"]  # vendored
+extend-exclude = ["src/tts_mini/acoustic", "src/tts_mini/vocoder"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]

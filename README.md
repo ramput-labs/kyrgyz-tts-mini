@@ -1,161 +1,96 @@
-# kyrgyz-tts
+# tts-mini
 
-**Кыргызча текстти үнгө айландыруу (text-to-speech).** Эки даяр үн бар: аял жана эркек. Үндөр
-[Matcha-TTS](https://github.com/shivammehta25/Matcha-TTS) архитектурасында үйрөтүлгөн, үндү HiFi-GAN вокодери
-түзөт. Долбоор буйрук сабынан (CLI), Python'дон жана Gradio веб-интерфейсинен колдонулат.
+**English** · [Кыргызча](README.ky.md)
 
-- ⚡ Ылдам: Apple Silicon'до 4 секунддук сүйлөм болжол менен 0,15 секундда түзүлөт. CUDA жана CPU'да да иштейт.
-- 🧰 Бир буйрук менен орнотулат: `make setup` чөйрөнү түзүп, моделдерди жүктөп, баарын текшерет.
-- 🔒 Ишенимдүү жүктөө: ар бир файл SHA-256 менен текшерилет. Бир булак иштебесе, кийинкиси колдонулат.
+Small, fast Kyrgyz text-to-speech. Two voices (`woman`, `man`), runs on CPU, CUDA and Apple Silicon.
+Use it from the terminal, from Python, or in a web UI.
 
-Кепти текстке айландыруу керек болсо, шериктеш долбоорду караңыз: [kyrgyz-asr](../kyrgyz-asr).
+## Requirements
 
-## Тез баштоо
+- macOS or Linux (Windows: WSL2)
+- Python 3.11+
+- ~4 GB free disk (models are ~500 MB, downloaded on setup)
 
-**Талаптар:** macOS же Linux (Windows'то WSL2), Python 3.11+, ~4 ГБ бош орун жана интернет.
-
-```bash
-git clone <бул-репозиторий> kyrgyz-tts
-cd kyrgyz-tts
-make setup      # бир жолу: чөйрө + моделдер (~500 МБ) + текшерүү
-make run        # демо: бир эле сүйлөм эки үн менен → outputs/
-```
-
-`make setup` бүткөндө «Ready» деген жазуу чыгат. Угуп көрүү үчүн: `make run PLAY=1`.
-
-### `make setup` эмне кылат
-
-1. **Машинаны текшерет** (`scripts/check_env.py`): Python'дун версиясын, `venv` модулун жана дисктеги бош
-   орунду. Бир нерсе жетпесе, аны кантип оңдоону айтып берет.
-2. **`.venv` чөйрөсүн түзүп**, долбоорду ага орнотот. `pyproject.toml` өзгөргөндө гана кайра орнотот.
-3. **Моделдерди жүктөйт** (`models/`): ар бир файл адегенде убактылуу `.part` файлга түшөт, SHA-256
-   текшерилет, андан кийин гана ордуна коюлат. Үзүлүп калса, кайра иштеткенде уланат.
-4. **Текшерүү жүргүзөт** (`kyrgyz-tts doctor`): түзмөктү жана моделдерди текшерип, чыныгы сүйлөм түзүп көрөт.
-
-Аны каалаган убакта кайра иштетсеңиз болот: бүткөн кадамдар өткөрүлүп жиберилет.
-
-## Колдонуу
+## Setup with Make
 
 ```bash
-make speak TEXT="Кош келиңиз!" VOICE=man ARGS=--play   # бир сүйлөм
-make say                                              # интерактивдүү: жазасыз — угасыз
-make speak-file FILE=samples/texts.txt                # файлдагы ар бир сап → бир WAV
-make help                                             # бардык буйруктар
+git clone <repo-url> tts-mini && cd tts-mini
+make setup        # venv + install + download models + health check
+make run          # say a sentence in both voices → outputs/
 ```
 
-### Веб-интерфейс (Gradio)
+## Setup without Make
 
 ```bash
-make demo                  # http://127.0.0.1:7860 — текст жазып, үн тандап, угуп, WAV жүктөп алыңыз
-make demo ARGS=--share     # коомдук gradio.live шилтемеси
+git clone <repo-url> tts-mini && cd tts-mini
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+tts-mini download     # fetch models into models/
+tts-mini doctor       # check everything works
 ```
 
-`make demo` Gradio'ну (`.[demo]` кошумчасы) өзү орнотот. Ар бир сап кыска тыныгуу менен окулат;
-ылдамдык, temperature, ODE кадамдары жана denoise «Settings» бөлүгүндө.
+## Examples
 
-Же түз эле `.venv/bin/kyrgyz-tts` (же `python -m kyrgyz_tts`):
+| Make | Without Make |
+| --- | --- |
+| `make speak TEXT="Кош келиңиз!"` | `tts-mini speak "Кош келиңиз!"` |
+| `make speak TEXT="Салам" VOICE=man ARGS=--play` | `tts-mini speak "Салам" -v man --play` |
+| `make speak-file FILE=samples/texts.txt` | `tts-mini speak -f samples/texts.txt` |
+| `make say` (type → listen) | `tts-mini speak` |
+| `make demo` (web UI) | `pip install -e ".[demo]" && python scripts/gradio_demo.py` |
 
-```bash
-kyrgyz-tts speak "Саламатсызбы!" -v woman -o salam.wav --play
-kyrgyz-tts speak -f story.txt --rate 1.2        # жайыраак
-kyrgyz-tts speak                                # интерактивдүү режим
-kyrgyz-tts doctor                               # абалды текшерүү
-```
+Output WAVs go to `outputs/` unless you pass `-o file.wav`. The web UI runs at http://127.0.0.1:7860.
 
-| Параметр | Демейки | Мааниси |
-| --- | --- | --- |
-| `-v, --voice` | `woman` | `woman` (аял) же `man` (эркек) |
-| `-o, --output` | `outputs/<убакыт>-<үн>.wav` | натыйжа сакталуучу файл |
-| `-p, --play` | өчүк | натыйжаны дароо угуу |
-| `--rate` | `1.0` | узундук коэффициенти: чоң сан — жайыраак |
-| `--temperature` | `0.667` | ар түрдүүлүк; `0` — ар дайым бирдей натыйжа |
-| `--steps` | `10` | ODE кадамдары (сапат менен ылдамдыктын тең салмагы) |
-| `--denoise` | `0.00025` | вокодердин ызы-чуусун басуу; `0` — өчүк |
-| `--device` | эң ылайыктуусу | `cuda`, `mps` же `cpu` |
-
-### Python'до
+**Python:**
 
 ```python
-from kyrgyz_tts.audio import save
-from kyrgyz_tts.engine import get_tts
+from tts_mini.audio import save
+from tts_mini.engine import get_tts
 
-speech = get_tts().synthesize("Саламатсызбы!", "woman")   # .audio (float32), .sample_rate (22050)
-save(speech.audio, speech.sample_rate, "salam.wav")
+speech = get_tts().synthesize("Саламатсызбы!", "woman")
+save(speech.audio, speech.sample_rate, "hello.wav")
 ```
 
-## Моделдер
+**Options** for `tts-mini speak`:
 
-Моделдер git'те **сакталбайт**. `make setup` (же `make download`) аларды `models/` папкасына жүктөйт:
-
-| Файл | Көлөмү | Эмне |
+| Option | Default | |
 | --- | --- | --- |
-| `models/woman.ckpt` | 219 МБ | аял үнү |
-| `models/man.ckpt` | 219 МБ | эркек үнү |
-| `models/hifigan_univ_v1` | 56 МБ | HiFi-GAN вокодери |
+| `-v, --voice` | `woman` | `woman` or `man` |
+| `-o, --output` | `outputs/<time>-<voice>.wav` | output file |
+| `-p, --play` | off | play the result |
+| `--rate` | `1.0` | higher = slower |
+| `--temperature` | `0.667` | variation; `0` = same output every time |
+| `--steps` | `10` | quality vs. speed |
+| `--device` | auto | `cuda`, `mps` or `cpu` |
+
+## Development
 
 ```bash
-make download    # жетпегендерин жүктөө (бар болсо, өткөрүп жиберет)
-make check       # SHA-256 менен кайра текшерүү
+make test         # all tests (model tests skip if models are missing)
+make lint         # or: make format
+make help         # every command
 ```
 
-Ар бир файлдын бир нече булагы (mirror) бар: алгач долбоордун Google Drive'ы, андан кийин баштапкы
-шилтемелер. Ар бир булак 3 жолу аракет кылынат. Контролдук суммасы туура келбеген файл эч качан орнотулбайт.
-Булактардын тизмеси [`src/kyrgyz_tts/download.py`](src/kyrgyz_tts/download.py) файлындагы `MODELS` бөлүгүндө.
+Without Make: `pytest`, `ruff check src tests scripts`.
 
-**Моделдерди өз Drive'ыңызга жайгаштыруу:** `kyrgyz-tts download --pack upload/` → `upload/` ичиндеги
-файлдарды Drive'га жүктөп, «Anyone with the link» кылып бөлүшүңүз → ар бир файлдын ID'син (шилтемедеги `/d/`
-менен `/view` ортосундагы бөлүк) `MODELS` тизмесиндеги `gdrive` катарынын башына кошуңуз.
+Env vars: `TTS_MINI_MODELS` (models folder), `TTS_MINI_OUTPUTS` (output folder).
 
-## Долбоордун түзүлүшү
+## Troubleshooting
 
-```
-Makefile              setup / run / test ж.б. буйруктар (make help)
-scripts/check_env.py  орнотуудан мурунку текшерүү (стандарттык китепкана гана)
-scripts/gradio_demo.py  веб-интерфейс (make demo)
-src/kyrgyz_tts/
-  cli.py              kyrgyz-tts буйругу: speak, doctor, download
-  engine.py           TTS: үндөрдү жана вокодерди жүктөйт, synthesize() → Speech
-  text.py             кыргызча текст → белгилердин номерлери
-  download.py         моделдерди жүктөө, текшерүү, --pack
-  config.py           жолдор (чөйрө өзгөрмөлөрү аркылуу өзгөртүлөт)
-  audio.py            түзмөк тандоо, сактоо, ойнотуу
-  matcha/, hifigan/   Matcha-TTS жана HiFi-GAN (угуу үчүн гана керектүү бөлүгү)
-samples/texts.txt     мисал текст
-tests/                тесттер
-models/, outputs/     моделдер жана натыйжалар (git'ке кирбейт)
-```
-
-## Иштеп чыгуу
-
-```bash
-make test        # бардык тесттер (моделдер жок болсо, моделдик тесттер өткөрүлүп жиберилет)
-make test-fast   # моделсиз тесттер
-make lint        # ruff;  make format — автоматтык оңдоо
-make clean       # кэштерди тазалоо;  make clean-all — .venv да (models/ калат)
-make clean-models CONFIRM=yes   # моделдерди өчүрүү (ырастоо талап кылынат)
-```
-
-Чөйрө өзгөрмөлөрү: `KYRGYZ_TTS_MODELS` (моделдердин папкасы), `KYRGYZ_TTS_OUTPUTS` (натыйжалардын папкасы).
-
-## Көйгөйлөрдү чечүү
-
-| Көйгөй | Чечими |
+| Problem | Fix |
 | --- | --- |
-| `Python 3.11+ not found` | Python 3.12 орнотуңуз (`brew install python@3.12` же `sudo apt install python3.12 python3.12-venv`) же жолун көрсөтүңүз: `make setup PYTHON=/path/to/python3.12` |
-| `venv module is missing` | Debian/Ubuntu: `sudo apt install python3-venv` |
-| Google Drive жүктөөнү четке какты | Бир аздан кийин `make download` кайра иштетиңиз, жүктөө калган жеринен уланат. Drive бир файлды көп жолу жүктөсө, убактылуу бөгөйт. |
-| `another download is already running` | Башка терминалда жүктөө жүрүп жатат. Ал бүткүчө күтүңүз. |
-| `--play` иштебейт | Үн түзмөгү жок (SSH, сервер). Файл `outputs/` папкасына сакталат, ошону угуңуз. |
-| Кандайдыр бир нерсе бузулду | `make doctor` эмне туура эмес экенин көрсөтөт. `make clean-all && make setup` баарын кайра түзөт (моделдер кайра жүктөлбөйт). |
+| `Python 3.11+ not found` | `make setup PYTHON=/path/to/python3.12` |
+| Google Drive refused the download | wait a bit, run `make download` again (it resumes) |
+| `--play` does nothing | no audio device (SSH/server); open the file in `outputs/` |
+| Anything else | `make doctor`, or `make clean-all && make setup` |
 
-**Чектөө:** үндөр кыргыз кирилл тамгаларын жана негизги тыныш белгилерин гана окуйт. Сандар жана латын
-тамгалары өткөрүлүп жиберилет, программа аларды эскертет. Сандарды сөз менен жазыңыз: «2024» ордуна «эки миң
-жыйырма төрт».
+Only Kyrgyz Cyrillic is spoken; digits and Latin letters are skipped. Write numbers as words.
 
-## Лицензия жана ыраазычылык
+## License
 
-- Код: [MIT](LICENSE). Matcha-TTS жана HiFi-GAN коду да MIT ([THIRD_PARTY_LICENSE-Matcha-TTS](THIRD_PARTY_LICENSE-Matcha-TTS)).
-- **Үн моделдеринин салмактары (Мамтил):** КР Президентине караштуу Мамлекеттик тил боюнча улуттук комиссия, Ulutsoft LLC үйрөткөн.
-  Лицензиясы көрсөтүлгөн эмес, ошондуктан кайра таратуудан же коммерциялык колдонуудан мурун ээлеринен уруксат
-  сураңыз.
-- HiFi-GAN вокодери: Jungil Kong ж.б. (MIT).
+Code: [MIT](LICENSE). Some model code is adapted from open-source projects, see
+[THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES).
+Voice weights: trained by the National Commission on the State Language under the President of the
+Kyrgyz Republic (Mamtil) / Ulutsoft LLC. No license is published, so ask them before redistributing or
+using commercially.

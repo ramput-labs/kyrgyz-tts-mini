@@ -1,10 +1,10 @@
-"""Kyrgyz text-to-speech from the terminal.
+"""Kyrgyz text-to-speech.
 
-kyrgyz-tts speak "Саламатсызбы!" --voice woman --play   text → outputs/<time>-woman.wav
-kyrgyz-tts speak -f samples/texts.txt                   every line of a file, joined into one WAV
-kyrgyz-tts speak                                        interactive: type a line, hear it
-kyrgyz-tts doctor                                       environment, models and a test synthesis
-kyrgyz-tts download                                     fetch missing models (see: download --help)
+tts-mini speak "Саламатсызбы!" --voice woman --play   text → outputs/<time>-woman.wav
+tts-mini speak -f samples/texts.txt                   every line of a file, joined into one WAV
+tts-mini speak                                        interactive: type a line, hear it
+tts-mini doctor                                       environment, models and a test synthesis
+tts-mini download                                     fetch missing models (see: download --help)
 """
 
 import argparse
@@ -15,7 +15,7 @@ from pathlib import Path
 
 import numpy as np
 
-from kyrgyz_tts import audio, config
+from tts_mini import audio, config
 
 DIM, CYAN, GREEN, RED, RESET = "\033[2m", "\033[36m", "\033[32m", "\033[31m", "\033[0m"
 
@@ -25,8 +25,8 @@ def status(message: str) -> None:
 
 
 def synthesize(args, text: str):
-    from kyrgyz_tts.engine import get_tts
-    from kyrgyz_tts.text import dropped_characters
+    from tts_mini.engine import get_tts
+    from tts_mini.text import dropped_characters
 
     speech = get_tts(args.device).synthesize(
         text,
@@ -48,7 +48,7 @@ def report(speech, path: Path) -> None:
 
 
 def warm_up(args) -> None:
-    from kyrgyz_tts.engine import get_tts
+    from tts_mini.engine import get_tts
 
     tts = get_tts(args.device)
     status(f"Loading the {args.voice} voice on {tts.device}…")
@@ -56,7 +56,7 @@ def warm_up(args) -> None:
 
 
 def cmd_speak(args) -> None:
-    from kyrgyz_tts.engine import Speech
+    from tts_mini.engine import Speech
 
     if args.file:
         lines = Path(args.file).read_text(encoding="utf-8").splitlines()
@@ -98,7 +98,6 @@ def interactive(args) -> None:
 
 
 def venv_status() -> tuple[bool, str]:
-    """Catch a .venv that another tool (e.g. an editor) re-created with a different Python."""
     cfg = Path(sys.prefix) / "pyvenv.cfg"
     if sys.prefix == sys.base_prefix or not cfg.exists():
         return True, "not in a virtual environment"
@@ -113,10 +112,9 @@ def venv_status() -> tuple[bool, str]:
 
 
 def cmd_doctor(args) -> None:
-    """Report the environment and run a test synthesis; exit code 1 if something is wrong."""
     import torch
 
-    from kyrgyz_tts.download import MODELS, problem
+    from tts_mini.download import MODELS, problem
 
     ok = True
 
@@ -143,7 +141,7 @@ def cmd_doctor(args) -> None:
         print(f"{DIM}- audio output   unavailable ({e}); --play will not work{RESET}")
 
     if ok:
-        from kyrgyz_tts.engine import get_tts
+        from tts_mini.engine import get_tts
 
         start = time.perf_counter()
         try:
@@ -159,7 +157,7 @@ def cmd_doctor(args) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="kyrgyz-tts", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+        prog="tts-mini", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     sub = parser.add_subparsers(dest="command", required=True, metavar="command")
 
@@ -180,7 +178,6 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--device", help="cuda, mps or cpu (default: best available)")
     p.set_defaults(func=cmd_doctor)
 
-    # Listed for --help only: main() hands `download ...` to kyrgyz_tts.download.
     sub.add_parser("download", help="download / verify / pack the models (see: download --help)", add_help=False)
     return parser
 
@@ -188,7 +185,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> None:
     argv = sys.argv[1:] if argv is None else argv
     if argv[:1] == ["download"]:
-        from kyrgyz_tts import download
+        from tts_mini import download
 
         return download.main(argv[1:])
     args = build_parser().parse_args(argv)

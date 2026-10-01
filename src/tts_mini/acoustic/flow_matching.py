@@ -1,8 +1,7 @@
-"""Conditional flow matching decoder, sampled with a fixed-step Euler solver."""
 
 import torch
 
-from kyrgyz_tts.matcha.decoder import Decoder
+from tts_mini.acoustic.decoder import Decoder
 
 
 class CFM(torch.nn.Module):

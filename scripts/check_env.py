@@ -1,7 +1,4 @@
-"""Check this machine before `make setup` creates the environment. Standard library only.
-
-Usage: python scripts/check_env.py MIN_FREE_GB
-"""
+"""Pre-setup checks (stdlib only). Usage: python scripts/check_env.py MIN_FREE_GB"""
 
 import importlib.util
 import platform

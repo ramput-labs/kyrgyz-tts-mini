@@ -1,8 +1,8 @@
 """Download and verify the model files (they are not stored in git).
 
-  kyrgyz-tts download              everything that is missing (safe to re-run)
-  kyrgyz-tts download --check      verify installed files against their SHA-256
-  kyrgyz-tts download --pack DIR   copy installed models to DIR for uploading to your own mirror
+  tts-mini download              everything that is missing (safe to re-run)
+  tts-mini download --check      verify installed files against their SHA-256
+  tts-mini download --pack DIR   copy installed models to DIR for uploading to your own mirror
 
 Every model lists its mirrors in order. A download goes to a temporary file, is checked against its
 SHA-256 and only then moved into place, so an interrupted or corrupted download never lands in models/.
@@ -24,22 +24,22 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
-from kyrgyz_tts import config
+from tts_mini import config
 
-PROG = "kyrgyz-tts"
+PROG = "tts-mini"
 
 
 @dataclass(frozen=True)
 class Model:
     name: str
     path: Path
-    size: int  # bytes of the download (the .zip for a folder model)
-    sha256: str  # of the download
-    gdrive: tuple[str, ...] = ()  # Google Drive file ids, tried in order
-    folder: bool = False  # the download is a .zip holding a model folder
-    hf_repo: str | None = None  # folder models: Hugging Face fallback
+    size: int
+    sha256: str  # of the downloaded file (the .zip for folder models)
+    gdrive: tuple[str, ...] = ()
+    folder: bool = False
+    hf_repo: str | None = None
     hf_revision: str | None = None
-    weights: tuple[tuple[str, str], ...] = ()  # folder models: (file, sha256) checked after install
+    weights: tuple[tuple[str, str], ...] = ()  # (file, sha256) checked after unzipping
 
 
 MODELS = [
@@ -66,8 +66,8 @@ MODELS = [
     ),
 ]
 
-ATTEMPTS = 3  # per mirror, for network hiccups
-RETRY_DELAY = 3  # seconds, doubled after each failed attempt
+ATTEMPTS = 3
+RETRY_DELAY = 3  # seconds, doubled per retry
 
 
 class DownloadError(RuntimeError):
@@ -95,14 +95,12 @@ def sha256(path: Path) -> str:
 
 
 def is_installed(model: Model) -> bool:
-    """Quick check (presence and size); `problem()` does the full checksum verification."""
     if model.folder:
         return (model.path / "config.json").exists() and all((model.path / f).exists() for f, _ in model.weights)
     return model.path.is_file() and model.path.stat().st_size == model.size
 
 
 def problem(model: Model) -> str | None:
-    """None if the installed model is complete and matches its checksums, else what is wrong."""
     if not is_installed(model):
         return "missing"
     if model.folder:
@@ -115,7 +113,6 @@ def problem(model: Model) -> str | None:
 
 @contextmanager
 def download_lock() -> Iterator[None]:
-    """Only one download at a time per models folder."""
     config.MODELS_DIR.mkdir(parents=True, exist_ok=True)
     with (config.MODELS_DIR / ".download.lock").open("w") as handle:
         try:
@@ -126,7 +123,7 @@ def download_lock() -> Iterator[None]:
 
 
 def ensure_space(model: Model) -> None:
-    need = model.size * (2.1 if model.folder else 1.05)  # a folder needs its .zip and the extracted files
+    need = model.size * (2.1 if model.folder else 1.05)
     free = shutil.disk_usage(model.path.parent).free
     if free < need:
         raise DownloadError(f"not enough disk space for {model.name}: need {human(need)}, have {human(free)}")
@@ -154,7 +151,6 @@ def verify_weights(model: Model, folder: Path) -> None:
 
 
 def install_folder(model: Model, source: Path) -> None:
-    """Move a verified model folder into place, replacing any previous copy."""
     old = model.path.with_name(model.path.name + ".old")
     shutil.rmtree(old, ignore_errors=True)
     if model.path.exists():
@@ -164,9 +160,8 @@ def install_folder(model: Model, source: Path) -> None:
 
 
 def extract(archive: Path, workdir: Path) -> Path:
-    """Unzip into `workdir` and return the model folder (the zip may or may not have a top folder)."""
     with zipfile.ZipFile(archive) as z:
-        z.extractall(workdir)  # zipfile drops absolute paths and ".." components
+        z.extractall(workdir)
     entries = [p for p in workdir.iterdir() if p.name != "__MACOSX"]
     return entries[0] if len(entries) == 1 and entries[0].is_dir() else workdir
 
@@ -197,7 +192,6 @@ def from_hub(model: Model) -> None:
 
 
 def fetch(model: Model, source: str = "auto") -> None:
-    """Install `model` from the first mirror that delivers a verified copy."""
     mirrors: list[tuple[str, str | None]] = []
     if source in ("auto", "gdrive"):
         mirrors += [("Google Drive", file_id) for file_id in model.gdrive]
@@ -223,7 +217,7 @@ def fetch(model: Model, source: str = "auto") -> None:
             except ChecksumError as e:
                 failures.append(f"{label}: {e}")
                 break  # this mirror serves a different file: retrying will not help
-            except Exception as e:  # network errors, quota, …: retry, then try the next mirror
+            except Exception as e:
                 failures.append(f"{label}: {e}")
                 if attempt < ATTEMPTS:
                     log(f"  failed ({e}); retrying in {delay}s")
@@ -252,7 +246,6 @@ def check() -> bool:
 
 
 def pack(out: Path) -> None:
-    """Copy (or zip) the installed models into `out` and print the values for MODELS."""
     out.mkdir(parents=True, exist_ok=True)
     for model in MODELS:
         if not is_installed(model):
@@ -260,7 +253,7 @@ def pack(out: Path) -> None:
             continue
         if model.folder:
             target = out / f"{model.path.name}.zip"
-            with zipfile.ZipFile(target, "w", zipfile.ZIP_STORED) as z:  # weights barely compress
+            with zipfile.ZipFile(target, "w", zipfile.ZIP_STORED) as z:
                 for file in sorted(p for p in model.path.rglob("*") if p.is_file()):
                     z.write(file, Path(model.path.name) / file.relative_to(model.path))
         else:

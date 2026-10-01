@@ -1,5 +1,3 @@
-"""Tensor helpers from glow-tts / Matcha-TTS (https://github.com/jaywalnut310/glow-tts)."""
-
 import numpy as np
 import torch
 

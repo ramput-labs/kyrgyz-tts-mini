@@ -1,6 +1,6 @@
 import pytest
 
-from kyrgyz_tts.cli import build_parser, main
+from tts_mini.cli import build_parser, main
 
 
 @pytest.mark.parametrize(

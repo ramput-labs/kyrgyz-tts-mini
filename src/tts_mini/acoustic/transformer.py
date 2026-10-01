@@ -1,9 +1,5 @@
-"""Transformer block used inside the Matcha decoder.
+"""Parameter names here must match the checkpoints, so do not rename layers."""
 
-The original Matcha-TTS builds this block from diffusers layers. Only the configuration the
-checkpoints use is kept here (self-attention + feed-forward, layer norm), written in plain torch
-with the same parameter names so checkpoints trained against diffusers load unchanged.
-"""
 from typing import Optional
 
 import torch
@@ -12,7 +8,7 @@ import torch.nn.functional as F
 
 
 class SnakeBeta(nn.Module):
-    """Snake activation with separate magnitude: x + 1/b * sin^2(x * a) (https://arxiv.org/abs/2006.08195)."""
+    """Snake activation with separate magnitude: x + 1/b * sin^2(x * a)."""
 
     def __init__(self, in_features, out_features, alpha=1.0, alpha_trainable=True, alpha_logscale=True):
         super().__init__()
@@ -20,10 +16,10 @@ class SnakeBeta(nn.Module):
         self.proj = nn.Linear(in_features, out_features)
 
         self.alpha_logscale = alpha_logscale
-        if self.alpha_logscale:  # log scale alphas initialized to zeros
+        if self.alpha_logscale:
             self.alpha = nn.Parameter(torch.zeros(self.in_features) * alpha)
             self.beta = nn.Parameter(torch.zeros(self.in_features) * alpha)
-        else:  # linear scale alphas initialized to ones
+        else:
             self.alpha = nn.Parameter(torch.ones(self.in_features) * alpha)
             self.beta = nn.Parameter(torch.ones(self.in_features) * alpha)
 
@@ -86,8 +82,6 @@ class FeedForward(nn.Module):
 
 
 class Attention(nn.Module):
-    """Multi-head self-attention laid out like diffusers' Attention (to_q, to_k, to_v, to_out)."""
-
     def __init__(self, query_dim: int, heads: int, dim_head: int, dropout: float = 0.0, bias: bool = False):
         super().__init__()
         inner_dim = heads * dim_head
@@ -101,8 +95,8 @@ class Attention(nn.Module):
         b, t, _ = x.shape
         q, k, v = (proj(x).view(b, t, self.heads, -1).transpose(1, 2) for proj in (self.to_q, self.to_k, self.to_v))
         if attention_mask is not None:
-            # Matches diffusers: the 0/1 float mask goes to SDPA as-is, where a float mask is *added*
-            # to the attention scores. The checkpoints were trained this way, so keep it.
+            # The 0/1 float mask is *added* to the scores (not used as a boolean mask).
+            # The checkpoints were trained this way, so keep it.
             attention_mask = attention_mask.view(b, 1, 1, t).to(q.dtype)
         out = F.scaled_dot_product_attention(q, k, v, attn_mask=attention_mask)
         out = out.transpose(1, 2).reshape(b, t, -1)
