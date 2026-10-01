@@ -1,17 +1,13 @@
-"""Download and verify the models.
+"""Download, verify and upload the models (hosted on Hugging Face).
 
-  python -m tts_mini download              everything that is missing (safe to re-run)
-  python -m tts_mini download --check      verify installed files against their SHA-256
-  python -m tts_mini download --pack DIR   copy installed models to DIR to host your own mirror
-
-Downloads land in a .part file and are moved into models/ only after the SHA-256 matches.
-To self-host: run --pack, upload to Google Drive ("Anyone with the link"), and put the file ids first in `gdrive`.
+python -m kyrgyz_tts_mini download            fetch missing models (safe to re-run)
+python -m kyrgyz_tts_mini download --check    verify installed files against their SHA-256
+python -m kyrgyz_tts_mini upload [--public]   push the local models to the Hugging Face repo
 """
 
 import argparse
 import fcntl
 import hashlib
-import os
 import shutil
 import sys
 import time
@@ -20,9 +16,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
-from tts_mini import config
-
-PROG = "python -m tts_mini"
+from kyrgyz_tts_mini import config
 
 
 @dataclass(frozen=True)
@@ -31,7 +25,10 @@ class Model:
     path: Path
     size: int
     sha256: str
-    gdrive: tuple[str, ...]  # Google Drive file ids, tried in order
+
+    @property
+    def filename(self) -> str:
+        return self.path.name
 
 
 MODELS = [
@@ -40,26 +37,47 @@ MODELS = [
         config.VOICES["woman"],
         size=218_842_178,
         sha256="e951355ab0e5d07aac026c38dd96ce0712251ca74360625d94a85b7d3170fd3d",
-        gdrive=("1Jqf7lDXgbBqClfQ0xhw_mQOPwL0UgEPi", "1aaaspyNOYZGdoyWhkhUa6RMsCzIzu7fC"),
     ),
     Model(
         "man",
         config.VOICES["man"],
         size=218_841_284,
         sha256="f31782d348be5177911193f3f322bd6e076ff5b89ecd027880029089fb24e7f7",
-        gdrive=("1s1TXC3K1UqAFG_PY0Doo8U0UtpkjKDRw", "1tBs7ZVuGq3_jlsHCLT1zs_A4u-Lv7ggl"),
     ),
     Model(
         "vocoder",
         config.VOCODER,
         size=55_788_858,
         sha256="771eaf4876485a35e25577563d390c262e23c2421e4a8c929eacfde34a5b7a60",
-        gdrive=("1RqfYM-yfFh6mdrkuWz8Ve8QV6PkHRYvZ", "1qpgI41wNXFcH-iKq1Y42JlBC9j0je8PW"),
     ),
 ]
 
 ATTEMPTS = 3
 RETRY_DELAY = 3  # seconds, doubled per retry
+
+MODEL_CARD = """---
+language: ky
+pipeline_tag: text-to-speech
+license: other
+tags: [kyrgyz, tts, kyrgyz-tts-mini]
+---
+
+# kyrgyz-tts-mini
+
+Model files for [kyrgyz-tts-mini](https://github.com/ramput-labs/kyrgyz-tts-mini), a small Kyrgyz text-to-speech tool.
+
+| File | |
+| --- | --- |
+| `woman.ckpt` | female voice |
+| `man.ckpt` | male voice |
+| `vocoder.pt` | vocoder (mel → audio) |
+
+Download them with `make download` (or `python -m kyrgyz_tts_mini download`) from the GitHub repo.
+
+Voice weights were trained by the National Commission on the State Language under the President of the
+Kyrgyz Republic (Mamtil) / Ulutsoft LLC. No license is published; ask them before redistributing or
+using commercially.
+"""
 
 
 class DownloadError(RuntimeError):
@@ -114,46 +132,33 @@ def ensure_space(model: Model) -> None:
         raise DownloadError(f"not enough disk space for {model.name}: need {human(need)}, have {human(free)}")
 
 
-def gdrive_download(file_id: str, output: Path) -> None:
-    import gdown
+def hub_download(model: Model, force: bool = False) -> None:
+    from huggingface_hub import hf_hub_download
 
-    if gdown.download(id=file_id, output=str(output), quiet=False, resume=True) is None:
-        raise DownloadError("Google Drive refused the download (is it shared as 'Anyone with the link'?)")
-
-
-def from_gdrive(model: Model, file_id: str) -> None:
-    part = model.path.with_name(model.path.name + ".part")
-    gdrive_download(file_id, part)
-    if part.stat().st_size != model.size or sha256(part) != model.sha256:
-        part.unlink()
-        raise ChecksumError(f"{model.name}: downloaded file does not match the expected SHA-256")
-    os.replace(part, model.path)
+    hf_hub_download(config.HF_REPO, model.filename, local_dir=model.path.parent, force_download=force)
 
 
-def fetch(model: Model) -> None:
-    if not model.gdrive:
-        raise DownloadError(f"{model.name}: no mirror configured")
+def fetch(model: Model, force: bool = False) -> None:
     model.path.parent.mkdir(parents=True, exist_ok=True)
     ensure_space(model)
-    failures = []
-    for mirror, file_id in enumerate(model.gdrive, 1):
-        delay = RETRY_DELAY
-        for attempt in range(1, ATTEMPTS + 1):
-            log(f"↓ {model.name} from mirror {mirror} ({human(model.size)}), attempt {attempt}/{ATTEMPTS}")
-            try:
-                from_gdrive(model, file_id)
-                log(f"✓ {model.name} → {model.path}")
-                return
-            except ChecksumError as e:
-                failures.append(f"mirror {mirror}: {e}")
-                break  # this mirror serves a different file: retrying will not help
-            except Exception as e:
-                failures.append(f"mirror {mirror}: {e}")
-                if attempt < ATTEMPTS:
-                    log(f"  failed ({e}); retrying in {delay}s")
-                    time.sleep(delay)
-                    delay *= 2
-    raise DownloadError(f"{model.name}: every mirror failed:\n  " + "\n  ".join(failures))
+    delay = RETRY_DELAY
+    for attempt in range(1, ATTEMPTS + 1):
+        log(f"↓ {model.name} from huggingface.co/{config.HF_REPO} ({human(model.size)}), attempt {attempt}/{ATTEMPTS}")
+        try:
+            hub_download(model, force=force or attempt > 1)
+            if problem(model) is not None:
+                model.path.unlink(missing_ok=True)
+                raise ChecksumError(f"{model.name}: downloaded file does not match the expected SHA-256")
+            log(f"✓ {model.name} → {model.path}")
+            return
+        except ChecksumError:
+            raise
+        except Exception as e:
+            if attempt == ATTEMPTS:
+                raise DownloadError(f"{model.name}: download failed: {e}") from e
+            log(f"  failed ({e}); retrying in {delay}s")
+            time.sleep(delay)
+            delay *= 2
 
 
 def download(names: list[str] | None = None, force: bool = False) -> None:
@@ -163,7 +168,7 @@ def download(names: list[str] | None = None, force: bool = False) -> None:
             if is_installed(model) and not force:
                 log(f"✓ {model.name} already installed")
                 continue
-            fetch(model)
+            fetch(model, force)
 
 
 def check() -> bool:
@@ -175,26 +180,32 @@ def check() -> bool:
     return ok
 
 
-def pack(out: Path) -> None:
-    out.mkdir(parents=True, exist_ok=True)
+def upload(public: bool = False) -> None:
+    from huggingface_hub import CommitOperationAdd, HfApi
+
     for model in MODELS:
-        if not is_installed(model):
-            log(f"skip {model.name}: not installed")
-            continue
-        target = out / model.path.name
-        shutil.copyfile(model.path, target)
-        print(f'{model.name}: upload {target.name}; size={target.stat().st_size:_}, sha256="{sha256(target)}"')
+        if issue := problem(model):
+            raise DownloadError(f"{model.name}: {issue} ({model.path}); run `make download` or fix it before uploading")
+
+    api = HfApi()
+    url = api.create_repo(config.HF_REPO, private=not public, exist_ok=True)
+    log(f"↑ uploading {len(MODELS)} models to {url} ({'public' if public else 'private'})")
+    operations = [CommitOperationAdd(m.filename, str(m.path)) for m in MODELS]
+    operations.append(CommitOperationAdd("README.md", MODEL_CARD.encode()))
+    api.create_commit(config.HF_REPO, operations=operations, commit_message="Upload kyrgyz-tts-mini models")
+    log(f"✓ done: {url}")
 
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
-        prog=f"{PROG} download", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+        prog="python -m kyrgyz_tts_mini download",
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     names = [m.name for m in MODELS]
     parser.add_argument("names", nargs="*", metavar="MODEL", help=f"any of: {', '.join(names)} (default: all)")
     parser.add_argument("--force", action="store_true", help="download again even if installed")
     parser.add_argument("--check", action="store_true", help="verify installed models and exit")
-    parser.add_argument("--pack", metavar="DIR", type=Path, help="copy installed models to DIR for uploading")
     args = parser.parse_args(argv)
     if unknown := set(args.names) - set(names):
         parser.error(f"unknown model {', '.join(sorted(unknown))}; choose from {', '.join(names)}")
@@ -202,15 +213,8 @@ def main(argv: list[str] | None = None) -> None:
     try:
         if args.check:
             sys.exit(0 if check() else 1)
-        if args.pack:
-            pack(args.pack)
-            return
         download(args.names, args.force)
     except (DownloadError, OSError) as e:
         sys.exit(f"error: {e}")
     except KeyboardInterrupt:
         sys.exit("\ninterrupted: run the same command again to resume")
-
-
-if __name__ == "__main__":
-    main()

@@ -1,4 +1,4 @@
-# tts-mini
+# kyrgyz-tts-mini
 
 [English](README.md) · **Кыргызча**
 
@@ -14,7 +14,7 @@ CPU, CUDA жана Apple Silicon'до иштейт. Терминалдан, Pyth
 ## Make менен орнотуу
 
 ```bash
-git clone <repo-url> tts-mini && cd tts-mini
+git clone https://github.com/ramput-labs/kyrgyz-tts-mini.git && cd kyrgyz-tts-mini
 make setup        # venv + орнотуу + моделдерди жүктөө + текшерүү
 make run          # бир сүйлөмдү эки үн менен окуйт → outputs/
 ```
@@ -22,23 +22,23 @@ make run          # бир сүйлөмдү эки үн менен окуйт �
 ## Make'сиз орнотуу
 
 ```bash
-git clone <repo-url> tts-mini && cd tts-mini
+git clone https://github.com/ramput-labs/kyrgyz-tts-mini.git && cd kyrgyz-tts-mini
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-python -m tts_mini download   # моделдерди models/ папкасына жүктөө
-python -m tts_mini doctor     # баары иштеп жатканын текшерүү
+python -m kyrgyz_tts_mini download   # моделдерди models/ папкасына жүктөө
+python -m kyrgyz_tts_mini doctor     # баары иштеп жатканын текшерүү
 ```
 
 ## Мисалдар
 
 | Make | Make'сиз |
 | --- | --- |
-| `make speak TEXT="Кош келиңиз!"` | `python -m tts_mini speak "Кош келиңиз!"` |
-| `make speak TEXT="Салам" VOICE=man ARGS=--play` | `python -m tts_mini speak "Салам" -v man --play` |
-| `make speak-file FILE=samples/texts.txt` | `python -m tts_mini speak -f samples/texts.txt` |
-| `make say` (жаз → ук) | `python -m tts_mini speak` |
-| `make web` (веб-интерфейс) | `python -m tts_mini web` |
+| `make speak TEXT="Кош келиңиз!"` | `python -m kyrgyz_tts_mini speak "Кош келиңиз!"` |
+| `make speak TEXT="Салам" VOICE=man ARGS=--play` | `python -m kyrgyz_tts_mini speak "Салам" -v man --play` |
+| `make speak-file FILE=samples/texts.txt` | `python -m kyrgyz_tts_mini speak -f samples/texts.txt` |
+| `make say` (жаз → ук) | `python -m kyrgyz_tts_mini speak` |
+| `make web` (веб-интерфейс) | `python -m kyrgyz_tts_mini web` |
 
 WAV файлдар `outputs/` папкасына сакталат (же `-o file.wav` менен башка жерге). Веб-интерфейс:
 http://127.0.0.1:7860.
@@ -46,14 +46,14 @@ http://127.0.0.1:7860.
 **Python'до:**
 
 ```python
-from tts_mini.audio import save
-from tts_mini.engine import get_tts
+from kyrgyz_tts_mini.audio import save
+from kyrgyz_tts_mini.engine import get_tts
 
 speech = get_tts().synthesize("Саламатсызбы!", "woman")
 save(speech.audio, speech.sample_rate, "salam.wav")
 ```
 
-**`python -m tts_mini speak` параметрлери:**
+**`python -m kyrgyz_tts_mini speak` параметрлери:**
 
 | Параметр | Демейки | |
 | --- | --- | --- |
@@ -75,14 +75,36 @@ make help         # бардык буйруктар
 
 Make'сиз: `pytest`.
 
-Чөйрө өзгөрмөлөрү: `TTS_MINI_MODELS` (моделдердин папкасы), `TTS_MINI_OUTPUTS` (натыйжалардын папкасы).
+Чөйрө өзгөрмөлөрү: `KYRGYZ_TTS_MINI_MODELS` (моделдердин папкасы), `KYRGYZ_TTS_MINI_OUTPUTS` (натыйжалардын папкасы),
+`KYRGYZ_TTS_MINI_HF_REPO` (моделдердин репозиторийи).
+
+## Моделдер
+
+`make download` моделдерди [huggingface.co/ramput-labs/kyrgyz-tts-mini](https://huggingface.co/ramput-labs/kyrgyz-tts-mini)
+дарегинен `models/` папкасына жүктөйт жана ар бир файлдын SHA-256 суммасын текшерет.
+
+| Файл | Көлөмү | |
+| --- | --- | --- |
+| `woman.ckpt` | 219 МБ | аял үнү |
+| `man.ckpt` | 219 МБ | эркек үнү |
+| `vocoder.pt` | 56 МБ | вокодер |
+
+**Жүктөп коюу** (тейлөөчүлөр үчүн): үч файлды `models/` папкасына коюп, андан кийин:
+
+```bash
+.venv/bin/hf auth login     # жазуу укугу бар токен: https://huggingface.co/settings/tokens
+make upload                 # жабык репозиторий; ачык кылуу үчүн: make upload ARGS=--public
+```
+
+Make'сиз: `python -m kyrgyz_tts_mini upload [--public]`. Ал контролдук суммаларды текшерип, керек болсо репозиторийди
+түзүп, файлдарды модель картасы менен жүктөйт.
 
 ## Көйгөйлөрдү чечүү
 
 | Көйгөй | Чечими |
 | --- | --- |
 | `Python 3.11+ not found` | `make setup PYTHON=/path/to/python3.12` |
-| Google Drive жүктөөнү четке какты | бир аз күтүп, `make download` кайра иштетиңиз (калган жеринен уланат) |
+| Жүктөөдө `401` / `404` | Hugging Face репозиторийи жабык же али жүктөлө элек: `hf auth login` же `HF_TOKEN` коюңуз |
 | `--play` иштебейт | үн түзмөгү жок (SSH/сервер); `outputs/` ичиндеги файлды угуңуз |
 | Башка көйгөй | `make doctor`, же `make clean-all && make setup` |
 

@@ -1,7 +1,7 @@
 
 import torch
 
-from tts_mini.acoustic.decoder import Decoder
+from kyrgyz_tts_mini.acoustic.decoder import Decoder
 
 
 class CFM(torch.nn.Module):

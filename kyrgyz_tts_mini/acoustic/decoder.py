@@ -6,7 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from einops import pack, rearrange, repeat
 
-from tts_mini.acoustic.transformer import BasicTransformerBlock
+from kyrgyz_tts_mini.acoustic.transformer import BasicTransformerBlock
 
 
 class SinusoidalPosEmb(torch.nn.Module):

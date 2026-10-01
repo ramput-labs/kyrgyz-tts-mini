@@ -2,22 +2,18 @@
 .venv/
 __pycache__/
 *.py[cod]
-*.egg-info/
-build/
-dist/
 .pytest_cache/
 .ruff_cache/
 
-# Models and generated audio: download with `make setup`, never commit weights
+# Models and generated audio (models live on Hugging Face: make download)
 models/
 outputs/
 *.ckpt
-*.safetensors
 *.pt
 *.pth
+*.safetensors
 *.bin
 *.onnx
-*.zip
 *.part
 *.wav
 !samples/*.wav
@@ -27,3 +23,4 @@ outputs/
 .idea/
 .vscode/
 .env
+.claude/

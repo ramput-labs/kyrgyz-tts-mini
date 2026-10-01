@@ -3,14 +3,14 @@
 import numpy as np
 import pytest
 
-from tts_mini.download import MODELS, is_installed
+from kyrgyz_tts_mini.models import MODELS, is_installed
 
 pytestmark = pytest.mark.skipif(not all(map(is_installed, MODELS)), reason="models not downloaded (run `make setup`)")
 
 
 @pytest.fixture(scope="module")
 def tts():
-    from tts_mini.engine import get_tts
+    from kyrgyz_tts_mini.engine import get_tts
 
     return get_tts()
 

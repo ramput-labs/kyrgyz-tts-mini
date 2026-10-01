@@ -21,10 +21,10 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 
-Third-party code in src/tts_mini/acoustic and src/tts_mini/vocoder
+Third-party code in kyrgyz_tts_mini/acoustic and kyrgyz_tts_mini/vocoder
 
 ================================================================================
-src/tts_mini/acoustic — adapted from Matcha-TTS (MIT)
+kyrgyz_tts_mini/acoustic — adapted from Matcha-TTS (MIT)
 https://github.com/shivammehta25/Matcha-TTS
 
 Copyright (c) 2023 Shivam Mehta
@@ -48,7 +48,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ================================================================================
-src/tts_mini/vocoder/models.py — adapted from HiFi-GAN (MIT)
+kyrgyz_tts_mini/vocoder/models.py — adapted from HiFi-GAN (MIT)
 https://github.com/jik876/hifi-gan
 
 Copyright (c) 2020 Jungil Kong
@@ -72,7 +72,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ================================================================================
-src/tts_mini/vocoder/denoiser.py — adapted from WaveGlow (BSD-3-Clause)
+kyrgyz_tts_mini/vocoder/denoiser.py — adapted from WaveGlow (BSD-3-Clause)
 https://github.com/NVIDIA/waveglow
 
 Copyright (c) 2018, NVIDIA Corporation

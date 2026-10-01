@@ -7,13 +7,13 @@ from functools import cache
 import numpy as np
 import torch
 
-from tts_mini import config
-from tts_mini.acoustic.model import SAMPLE_RATE, AcousticModel
-from tts_mini.audio import pick_device
-from tts_mini.text import has_letters, intersperse, text_to_sequence
-from tts_mini.vocoder.config import v1 as VOCODER_CONFIG
-from tts_mini.vocoder.denoiser import Denoiser
-from tts_mini.vocoder.models import Generator as Vocoder
+from kyrgyz_tts_mini import config
+from kyrgyz_tts_mini.acoustic.model import SAMPLE_RATE, AcousticModel
+from kyrgyz_tts_mini.audio import pick_device
+from kyrgyz_tts_mini.text import has_letters, intersperse, text_to_sequence
+from kyrgyz_tts_mini.vocoder.config import v1 as VOCODER_CONFIG
+from kyrgyz_tts_mini.vocoder.denoiser import Denoiser
+from kyrgyz_tts_mini.vocoder.models import Generator as Vocoder
 
 VOICES = tuple(config.VOICES)
 
@@ -26,7 +26,7 @@ class _AttrDict(dict):
 
 def _require(path):
     if not path.exists():
-        raise FileNotFoundError(f"{path} not found. Run `make setup` (or `python -m tts_mini download`) first.")
+        raise FileNotFoundError(f"{path} not found. Run `make setup` (or `python -m kyrgyz_tts_mini download`) first.")
     return path
 
 

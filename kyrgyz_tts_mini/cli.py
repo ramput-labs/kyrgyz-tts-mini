@@ -1,11 +1,12 @@
 """Kyrgyz text-to-speech.
 
-python -m tts_mini speak "Саламатсызбы!" --voice woman --play   text → outputs/<time>-woman.wav
-python -m tts_mini speak -f samples/texts.txt                   every line of a file, joined into one WAV
-python -m tts_mini speak                                        interactive: type a line, hear it
-python -m tts_mini web                                          web UI at http://127.0.0.1:7860
-python -m tts_mini doctor                                       environment, models and a test synthesis
-python -m tts_mini download                                     fetch missing models (see: download --help)
+python -m kyrgyz_tts_mini speak "Саламатсызбы!" --voice woman --play   text → outputs/<time>-woman.wav
+python -m kyrgyz_tts_mini speak -f samples/texts.txt                   every line of a file, joined into one WAV
+python -m kyrgyz_tts_mini speak                                        interactive: type a line, hear it
+python -m kyrgyz_tts_mini web                                          web UI at http://127.0.0.1:7860
+python -m kyrgyz_tts_mini doctor                                       environment, models and a test synthesis
+python -m kyrgyz_tts_mini download                                     fetch missing models from Hugging Face
+python -m kyrgyz_tts_mini upload                                       push local models to Hugging Face
 """
 
 import argparse
@@ -16,7 +17,7 @@ from pathlib import Path
 
 import numpy as np
 
-from tts_mini import audio, config
+from kyrgyz_tts_mini import audio, config
 
 DIM, CYAN, GREEN, RED, RESET = "\033[2m", "\033[36m", "\033[32m", "\033[31m", "\033[0m"
 
@@ -26,8 +27,8 @@ def status(message: str) -> None:
 
 
 def synthesize(args, text: str):
-    from tts_mini.engine import get_tts
-    from tts_mini.text import dropped_characters
+    from kyrgyz_tts_mini.engine import get_tts
+    from kyrgyz_tts_mini.text import dropped_characters
 
     speech = get_tts(args.device).synthesize(
         text,
@@ -49,7 +50,7 @@ def report(speech, path: Path) -> None:
 
 
 def warm_up(args) -> None:
-    from tts_mini.engine import get_tts
+    from kyrgyz_tts_mini.engine import get_tts
 
     tts = get_tts(args.device)
     status(f"Loading the {args.voice} voice on {tts.device}…")
@@ -57,7 +58,7 @@ def warm_up(args) -> None:
 
 
 def cmd_speak(args) -> None:
-    from tts_mini.engine import Speech
+    from kyrgyz_tts_mini.engine import Speech
 
     if args.file:
         lines = Path(args.file).read_text(encoding="utf-8").splitlines()
@@ -115,7 +116,7 @@ def venv_status() -> tuple[bool, str]:
 def cmd_doctor(args) -> None:
     import torch
 
-    from tts_mini.download import MODELS, problem
+    from kyrgyz_tts_mini.models import MODELS, problem
 
     ok = True
 
@@ -142,7 +143,7 @@ def cmd_doctor(args) -> None:
         print(f"{DIM}- audio output   unavailable ({e}); --play will not work{RESET}")
 
     if ok:
-        from tts_mini.engine import get_tts
+        from kyrgyz_tts_mini.engine import get_tts
 
         start = time.perf_counter()
         try:
@@ -158,15 +159,24 @@ def cmd_doctor(args) -> None:
 
 def cmd_web(args) -> None:
     try:
-        from tts_mini import web
+        from kyrgyz_tts_mini import web
     except ImportError:
         sys.exit("error: the web UI needs Gradio: pip install -r requirements.txt")
     web.launch(args)
 
 
+def cmd_upload(args) -> None:
+    from kyrgyz_tts_mini.models import DownloadError, upload
+
+    try:
+        upload(public=args.public)
+    except DownloadError as e:
+        sys.exit(f"error: {e}")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="python -m tts_mini", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+        prog="python -m kyrgyz_tts_mini", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     sub = parser.add_subparsers(dest="command", required=True, metavar="command")
 
@@ -194,16 +204,20 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--share", action="store_true", help="create a public gradio.live link")
     p.set_defaults(func=cmd_web)
 
-    sub.add_parser("download", help="download / verify / pack the models (see: download --help)", add_help=False)
+    sub.add_parser("download", help="download / verify the models (see: download --help)", add_help=False)
+
+    p = sub.add_parser("upload", help=f"push local models to huggingface.co/{config.HF_REPO}")
+    p.add_argument("--public", action="store_true", help="create the repo as public (default: private)")
+    p.set_defaults(func=cmd_upload)
     return parser
 
 
 def main(argv: list[str] | None = None) -> None:
     argv = sys.argv[1:] if argv is None else argv
     if argv[:1] == ["download"]:
-        from tts_mini import download
+        from kyrgyz_tts_mini import models
 
-        return download.main(argv[1:])
+        return models.main(argv[1:])
     args = build_parser().parse_args(argv)
     try:
         args.func(args)

@@ -1,4 +1,4 @@
-from tts_mini.text import SYMBOLS, clean, dropped_characters, has_letters, intersperse, text_to_sequence
+from kyrgyz_tts_mini.text import SYMBOLS, clean, dropped_characters, has_letters, intersperse, text_to_sequence
 
 
 def test_symbol_table_matches_checkpoints():

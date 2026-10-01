@@ -1,4 +1,4 @@
-# tts-mini — run `make help` for all targets
+# kyrgyz-tts-mini — run `make help` for all targets
 
 SHELL := bash
 .SHELLFLAGS := -eu -o pipefail -c
@@ -8,7 +8,7 @@ MAKEFLAGS += --no-print-directory
 PYTHON  ?= $(shell for p in python3.12 python3.13 python3.11 python3; do command -v $$p >/dev/null 2>&1 && { echo $$p; break; }; done)
 VENV    := .venv
 PY      := $(VENV)/bin/python
-CLI     := $(PY) -m tts_mini
+CLI     := $(PY) -m kyrgyz_tts_mini
 STAMP   := $(VENV)/.installed
 
 TEXT    ?= Саламатсызбы! Бүгүн аба ырайы абдан жакшы.
@@ -16,10 +16,10 @@ VOICE   ?= woman
 FILE    ?= samples/texts.txt
 ARGS    ?=
 
-RUFF      := --line-length 120 --extend-exclude tts_mini/acoustic,tts_mini/vocoder
+RUFF      := --line-length 120 --extend-exclude kyrgyz_tts_mini/acoustic,kyrgyz_tts_mini/vocoder
 RUFF_LINT := --select E,F,I,B,UP --ignore E501 --target-version py311
 
-.PHONY: help setup install download check doctor run speak say speak-file web \
+.PHONY: help setup install download check doctor run speak say speak-file web upload \
         test test-fast lint format clean clean-outputs clean-all clean-models
 
 help: ## Show this help
@@ -41,11 +41,14 @@ $(STAMP): $(PY) requirements.txt
 
 install: $(STAMP) ## Create .venv and install (re-runs when requirements.txt changes)
 
-download: $(STAMP) ## Download missing models, verified by SHA-256 (ARGS=--force to re-download)
+download: $(STAMP) ## Download missing models from Hugging Face (ARGS=--force to re-download)
 	$(CLI) download $(ARGS)
 
 check: $(STAMP) ## Verify the installed models against their checksums
 	$(CLI) download --check
+
+upload: $(STAMP) ## Upload local models to Hugging Face (run `.venv/bin/hf auth login` first; ARGS=--public)
+	$(CLI) upload $(ARGS)
 
 doctor: $(STAMP) ## Check environment + models and run a test synthesis
 	$(CLI) doctor

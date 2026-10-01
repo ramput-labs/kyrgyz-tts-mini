@@ -7,9 +7,9 @@ from pathlib import Path
 import omegaconf
 import torch
 
-from tts_mini.acoustic.flow_matching import CFM
-from tts_mini.acoustic.text_encoder import TextEncoder
-from tts_mini.acoustic.utils import denormalize, fix_len_compatibility, generate_path, sequence_mask
+from kyrgyz_tts_mini.acoustic.flow_matching import CFM
+from kyrgyz_tts_mini.acoustic.text_encoder import TextEncoder
+from kyrgyz_tts_mini.acoustic.utils import denormalize, fix_len_compatibility, generate_path, sequence_mask
 
 # torch>=2.6 loads with weights_only=True; allowlist the objects pickled in the checkpoints.
 CHECKPOINT_SAFE_GLOBALS = [

@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 from einops import rearrange
 
-from tts_mini.acoustic.utils import sequence_mask
+from kyrgyz_tts_mini.acoustic.utils import sequence_mask
 
 
 class LayerNorm(nn.Module):
