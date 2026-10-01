@@ -16,10 +16,14 @@ VOICE   ?= woman
 FILE    ?= samples/texts.txt
 ARGS    ?=
 
-RUFF      := --line-length 120 --extend-exclude kyrgyz_tts_mini/acoustic,kyrgyz_tts_mini/vocoder
-RUFF_LINT := --select E,F,I,B,UP --ignore E501 --target-version py311
+SPEAK   = $(CLI) speak --voice $(VOICE) $(ARGS)
 
-.PHONY: help setup install download check doctor run speak say speak-file web upload \
+RUFF        := $(VENV)/bin/ruff
+RUFF_OPTS   := --line-length 120 --extend-exclude kyrgyz_tts_mini/acoustic,kyrgyz_tts_mini/vocoder
+RUFF_CHECK  := $(RUFF) check $(RUFF_OPTS) --select E,F,I,B,UP --ignore E501 --target-version py311
+RUFF_FORMAT := $(RUFF) format $(RUFF_OPTS)
+
+.PHONY: help setup install download check doctor run speak say speak-file web demo upload \
         test test-fast lint format clean clean-outputs clean-all clean-models
 
 help: ## Show this help
@@ -55,21 +59,23 @@ doctor: $(STAMP) ## Check environment + models and run a test synthesis
 
 # --- play ------------------------------------------------------------------------
 
-run: $(STAMP) ## Demo: the same sentence in both voices → outputs/ (PLAY=1 to listen)
-	$(CLI) speak "$(TEXT)" --voice woman -o outputs/demo-woman.wav $(if $(PLAY),--play)
-	$(CLI) speak "$(TEXT)" --voice man -o outputs/demo-man.wav $(if $(PLAY),--play)
+run: $(STAMP) ## Say the same sentence in both voices → outputs/ (PLAY=1 to listen)
+	for v in woman man; do $(CLI) speak "$(TEXT)" --voice $$v -o outputs/demo-$$v.wav $(if $(PLAY),--play); done
 
 speak: $(STAMP) ## Speak text: make speak TEXT="Салам" VOICE=man ARGS=--play
-	$(CLI) speak "$(TEXT)" --voice $(VOICE) $(ARGS)
+	$(SPEAK) "$(TEXT)"
 
 say: $(STAMP) ## Interactive: type a line, hear it
-	$(CLI) speak --voice $(VOICE) $(ARGS)
+	$(SPEAK)
 
 speak-file: $(STAMP) ## Speak every line of a text file: make speak-file FILE=story.txt
-	$(CLI) speak --file "$(FILE)" --voice $(VOICE) $(ARGS)
+	$(SPEAK) --file "$(FILE)"
 
 web: $(STAMP) ## Web UI at http://127.0.0.1:7860 (ARGS=--share for a public link)
 	$(CLI) web $(ARGS)
+
+demo: override ARGS += --open
+demo: web ## Gradio playground, opened in the browser (ARGS=--share for a public link)
 
 # --- develop ---------------------------------------------------------------------
 
@@ -80,12 +86,12 @@ test-fast: $(STAMP) ## Run the tests that need no models
 	$(PY) -m pytest --ignore tests/test_engine.py $(ARGS)
 
 lint: $(STAMP) ## Lint and check formatting
-	$(VENV)/bin/ruff check $(RUFF) $(RUFF_LINT) .
-	$(VENV)/bin/ruff format --check $(RUFF) .
+	$(RUFF_CHECK) .
+	$(RUFF_FORMAT) --check .
 
 format: $(STAMP) ## Fix lint issues and format
-	$(VENV)/bin/ruff check --fix $(RUFF) $(RUFF_LINT) .
-	$(VENV)/bin/ruff format $(RUFF) .
+	$(RUFF_CHECK) --fix .
+	$(RUFF_FORMAT) .
 
 # --- clean -----------------------------------------------------------------------
 

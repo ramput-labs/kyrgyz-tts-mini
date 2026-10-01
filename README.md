@@ -39,6 +39,7 @@ python -m kyrgyz_tts_mini doctor     # check everything works
 | `make speak-file FILE=samples/texts.txt` | `python -m kyrgyz_tts_mini speak -f samples/texts.txt` |
 | `make say` (type → listen) | `python -m kyrgyz_tts_mini speak` |
 | `make web` (web UI) | `python -m kyrgyz_tts_mini web` |
+| `make demo` (Gradio playground, opens the browser) | `python -m kyrgyz_tts_mini web --open` |
 
 Output WAVs go to `outputs/` unless you pass `-o file.wav`. The web UI runs at http://127.0.0.1:7860.
 

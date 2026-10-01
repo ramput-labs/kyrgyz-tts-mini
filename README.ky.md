@@ -39,6 +39,7 @@ python -m kyrgyz_tts_mini doctor     # баары иштеп жатканын т
 | `make speak-file FILE=samples/texts.txt` | `python -m kyrgyz_tts_mini speak -f samples/texts.txt` |
 | `make say` (жаз → ук) | `python -m kyrgyz_tts_mini speak` |
 | `make web` (веб-интерфейс) | `python -m kyrgyz_tts_mini web` |
+| `make demo` (Gradio playground, браузерде ачылат) | `python -m kyrgyz_tts_mini web --open` |
 
 WAV файлдар `outputs/` папкасына сакталат (же `-o file.wav` менен башка жерге). Веб-интерфейс:
 http://127.0.0.1:7860.

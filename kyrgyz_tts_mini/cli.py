@@ -202,6 +202,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--port", type=int, default=7860)
     p.add_argument("--share", action="store_true", help="create a public gradio.live link")
+    p.add_argument("--open", action="store_true", help="open the UI in the default browser")
     p.set_defaults(func=cmd_web)
 
     sub.add_parser("download", help="download / verify the models (see: download --help)", add_help=False)

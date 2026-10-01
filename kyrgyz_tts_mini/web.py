@@ -72,4 +72,4 @@ def launch(args) -> None:
         btn.click(run, inputs, [out, info])
         text.submit(run, inputs, [out, info])
 
-    ui.launch(server_name=args.host, server_port=args.port, share=args.share)
+    ui.launch(server_name=args.host, server_port=args.port, share=args.share, inbrowser=args.open)
